@@ -8,6 +8,7 @@ inline constexpr int playerw {150};
 inline constexpr int playerh {150};
 inline constexpr float playerspeed {300.0f};
 inline constexpr float spritechange {1.0f / 10};
+inline constexpr float hitbox_size {24.0f};
 
 inline struct Controls HumanControls{
     SDL_SCANCODE_W,
