@@ -76,6 +76,16 @@ void Player::draw(SDL_Renderer* renderer) {
     SDL_FRect src = get_texture_box();
     SDL_RenderTexture(renderer, texture, &src, &box);
 
+    float bar_y = box.y - bar_y_offset;
+    SDL_FRect bar_bg = {box.x, bar_y, box.w, bar_h};
+    SDL_SetRenderDrawColor(renderer, 60, 60, 60, 255);
+    SDL_RenderFillRect(renderer, &bar_bg);
+
+    float ratio = health / max_health;
+    SDL_FRect bar_fill = {box.x, bar_y, box.w * ratio, bar_h};
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    SDL_RenderFillRect(renderer, &bar_fill);
+
     for(Bullet& b: bullets) {b.draw(renderer);}
 }
 
@@ -106,4 +116,13 @@ void Player::load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* sh
 
 SDL_FRect Player::get_texture_box() {
     return spritesheet.getSrc(dirIndex.at(direction), texture_state);
+}
+
+void Player::reset(float x, float y) {
+    box = {x, y, playerw, playerh};
+    hitbox = {x + playerw / 2 - hitbox_size,  y + playerh / 2 - hitbox_size,
+              hitbox_size * 2, hitbox_size * 2};
+    is_firing = false;
+    health = max_health;
+    for(Bullet& b:bullets) {b.isLoaded = true; b.isShot = false;}
 }

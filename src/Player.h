@@ -15,6 +15,7 @@ class Player {
     void move(float dt, PlayerIntent intent);
     void draw(SDL_Renderer* renderer);
     void load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* shoot, SDL_Texture* bullet);
+    void reset(float x, float y);
 
     float health = max_health;
     SDL_FRect box;
