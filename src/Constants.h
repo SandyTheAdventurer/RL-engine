@@ -14,6 +14,15 @@ inline constexpr float bullet_damage {100.0f};
 inline constexpr int bulletw {30};
 inline constexpr int bulleth {30};
 inline constexpr int max_bullets {12};
+inline constexpr int font_size {20};
+inline constexpr float bar_h {10.0f};
+inline constexpr float bar_y_offset {15.0f};
+
+enum class GameState {
+    START,
+    PLAYING,
+    END
+};
 
 struct FrameInput {
     bool quit = false;
