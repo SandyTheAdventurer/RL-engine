@@ -1,5 +1,4 @@
 #pragma once
-#include "Structures.h"
 #include <map>
 
 inline constexpr int screenw {1080};
@@ -7,6 +6,7 @@ inline constexpr int screenh {720};
 inline constexpr int playerw {150};
 inline constexpr int playerh {150};
 inline constexpr float playerspeed {300.0f};
+inline constexpr int max_health = {1000};
 inline constexpr float spritechange {1.0f / 10};
 inline constexpr float hitbox_size {24.0f};
 inline constexpr float bullet_speed {600.0f};
@@ -25,20 +25,6 @@ struct PlayerIntent {
     int mx = 0, my = 0;
     bool fire = false;
     float aim_x = 0, aim_y = 0;
-};
-
-inline struct Controls HumanControls{
-    SDL_SCANCODE_W,
-    SDL_SCANCODE_S,
-    SDL_SCANCODE_A,
-    SDL_SCANCODE_D
-};
-
-inline struct Controls BotControls{
-    SDL_SCANCODE_UP,
-    SDL_SCANCODE_DOWN,
-    SDL_SCANCODE_LEFT,
-    SDL_SCANCODE_RIGHT
 };
 
 inline std::map<std::pair<int,int>, int> dirIndex = {
