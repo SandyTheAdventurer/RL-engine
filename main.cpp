@@ -46,6 +46,7 @@ int main()
         bot.move(dt, getBotIntent(ctrl, bot.box, prev_fire_btn));
 
         check_players_collision(&human, &bot);
+        check_bullet_collision(&human, &bot);
 
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);

@@ -10,6 +10,7 @@ inline constexpr int max_health = {1000};
 inline constexpr float spritechange {1.0f / 10};
 inline constexpr float hitbox_size {24.0f};
 inline constexpr float bullet_speed {750.0f};
+inline constexpr float bullet_damage {100.0f};
 inline constexpr int bulletw {30};
 inline constexpr int bulleth {30};
 inline constexpr int max_bullets {12};
