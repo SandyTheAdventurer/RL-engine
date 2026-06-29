@@ -1,24 +1,18 @@
 #include "Player.h"
 #include "Constants.h"
 
-Player::Player(float x, float y, float speed, std::string name, Controls controls)
+Player::Player(float x, float y, float speed, std::string name)
     : speed(speed),
-    name(name),
-    controls(controls)
+    name(name)
 {
     box = {x, y, playerw, playerh};
     hitbox = {x + playerw / 2 - hitbox_size,  y + playerh / 2 - hitbox_size,
               hitbox_size * 2, hitbox_size * 2};
 }
 
-void Player::move(float dt) {
-    const bool* keys = SDL_GetKeyboardState(nullptr);
-
-    int mx = 0, my = 0;
-    if (keys[controls.up])    my = -1;
-    if (keys[controls.down])  my = 1;
-    if (keys[controls.left])  mx = -1;
-    if (keys[controls.right]) mx = 1;
+void Player::move(float dt, PlayerIntent intent) {
+    int mx = intent.mx;
+    int my = intent.my;
 
     if (mx != 0 || my != 0)
         direction = {mx, -my};
@@ -42,12 +36,25 @@ void Player::move(float dt) {
     hitbox.y = box.y + playerh / 2 - hitbox_size;
 
     texture = (mx == 0 && my == 0) ? idle_texture : walk_texture;
+
+    if (intent.fire) {
+        for(Bullet& b: bullets) {
+            if(b.isLoaded) {
+                b.fire(box.x + playerw / 2, box.y + playerh / 2, intent.aim_x, intent.aim_y);
+                break;
+            }
+        }
+    }
+
+    for(Bullet& b: bullets) {b.move(dt);}
     advanceFrame(dt);
 }
 
 void Player::draw(SDL_Renderer* renderer) {
     SDL_FRect src = get_texture_box();
     SDL_RenderTexture(renderer, texture, &src, &box);
+
+    for(Bullet& b: bullets) {b.draw(renderer);}
 }
 
 void Player::advanceFrame(float dt) {
@@ -58,11 +65,12 @@ void Player::advanceFrame(float dt) {
     }
 }
 
-void Player::load_textures(SDL_Texture* idle, SDL_Texture* walk)
+void Player::load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* bullet)
 {
     idle_texture = idle;
     walk_texture = walk;
     texture = idle;
+    for(Bullet& b: bullets){b.load_textures(bullet);}
 }
 
 SDL_FRect Player::get_texture_box() {

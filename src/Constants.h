@@ -9,6 +9,23 @@ inline constexpr int playerh {150};
 inline constexpr float playerspeed {300.0f};
 inline constexpr float spritechange {1.0f / 10};
 inline constexpr float hitbox_size {24.0f};
+inline constexpr float bullet_speed {600.0f};
+inline constexpr int bulletw {30};
+inline constexpr int bulleth {30};
+inline constexpr int max_bullets {12};
+
+struct FrameInput {
+    bool quit = false;
+    bool mouse_left_clicked = false;
+    bool mouse_right_clicked = false;
+    float mouse_x, mouse_y;
+};
+
+struct PlayerIntent {
+    int mx = 0, my = 0;
+    bool fire = false;
+    float aim_x = 0, aim_y = 0;
+};
 
 inline struct Controls HumanControls{
     SDL_SCANCODE_W,
