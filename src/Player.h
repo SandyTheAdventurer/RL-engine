@@ -16,6 +16,7 @@ class Player {
     void draw(SDL_Renderer* renderer);
     void load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* bullet);
 
+    float health = max_health;
     SDL_FRect box;
     SDL_FRect hitbox;
 
