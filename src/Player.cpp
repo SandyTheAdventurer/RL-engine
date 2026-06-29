@@ -11,23 +11,23 @@ Player::Player(float x, float y, float speed, std::string name)
 }
 
 void Player::move(float dt, PlayerIntent intent) {
-    int mx = intent.mx;
-    int my = intent.my;
+    float vx = intent.mx * speed;
+    float vy = intent.my * speed;
 
-    if (mx != 0 || my != 0)
-        direction = {mx, -my};
+    if (intent.mx != 0 || intent.my != 0)
+        direction = {intent.mx, -intent.my};
 
-    float dx = speed * dt;
-    if (mx != 0 && my != 0)
-        dx *= 0.7071f;
+    if (intent.mx != 0 && intent.my != 0){
+        vx *= 0.7071f;
+        vy *= 0.7071f;}
 
-    if (mx != 0) {
-        float nx = box.x + mx * dx;
+    if (intent.mx != 0) {
+        float nx = box.x + vx * dt;
         if (nx >= 0 && nx + playerw <= screenw)
            box.x = nx;
     }
-    if (my != 0) {
-        float ny = box.y + my * dx;
+    if (intent.my != 0) {
+        float ny = box.y + vy * dt;
         if (ny >= 0 && ny + playerh <= screenh)
             box.y = ny;
     }
@@ -35,7 +35,7 @@ void Player::move(float dt, PlayerIntent intent) {
     hitbox.x = box.x + playerw / 2 - hitbox_size;
     hitbox.y = box.y + playerh / 2 - hitbox_size;
 
-    texture = (mx == 0 && my == 0) ? idle_texture : walk_texture;
+    texture = (intent.mx == 0 && intent.my == 0) ? idle_texture : walk_texture;
 
     if (intent.fire) {
         for(Bullet& b: bullets) {
