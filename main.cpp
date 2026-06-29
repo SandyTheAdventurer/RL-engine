@@ -16,8 +16,8 @@ int main()
     SDL_Window* window = SDL_CreateWindow("Hello SDL3", screenw, screenh, 0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
 
-    human.load_textures(IMG_LoadTexture(renderer, "assests/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assests/1Knight/Walk_Shadowless.png"));
-    bot.load_textures(IMG_LoadTexture(renderer, "assests/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assests/1Knight/Walk_Shadowless.png"));
+    human.load_textures(IMG_LoadTexture(renderer, "assets/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/Walk_Shadowless.png"));
+    bot.load_textures(IMG_LoadTexture(renderer, "assets/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/Walk_Shadowless.png"));
     
     bool running = true;
     Uint64 previous = SDL_GetPerformanceCounter();
