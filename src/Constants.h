@@ -7,7 +7,7 @@ inline constexpr int playerw {150};
 inline constexpr int playerh {150};
 inline constexpr float playerspeed {200.0f};
 inline constexpr int max_health = {1000};
-inline constexpr float spritechange {1.0f / 10};
+inline constexpr float spritechange {1.0f / 30};
 inline constexpr float hitbox_size {24.0f};
 inline constexpr float bullet_speed {750.0f};
 inline constexpr float bullet_damage {100.0f};
