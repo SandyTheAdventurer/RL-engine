@@ -39,3 +39,20 @@ void check_players_collision(Player* human, Player* bot) {
         bot->hitbox.y = bot->box.y + playerh / 2 - hitbox_size;
     }
 }
+
+void check_bullet_collision(Player* human, Player* bot) {
+    for(Bullet& b: human->bullets) {
+        if(b.isShot && aabb(b.hitbox, bot->hitbox)) {
+            bot->health -= bullet_damage;
+            b.isShot = false;
+            b.isLoaded = true;
+        }
+    }
+    for(Bullet& b: bot->bullets) {
+        if(b.isShot && aabb(b.hitbox, human->hitbox)) {
+            human->health -= bullet_damage;
+            b.isShot = false;
+            b.isLoaded = true;
+        }
+    }
+}

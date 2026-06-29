@@ -19,6 +19,7 @@ class Player {
     float health = max_health;
     SDL_FRect box;
     SDL_FRect hitbox;
+    std::array<Bullet, max_bullets / 2> bullets;
 
     private:
     void advanceFrame(float dt);
@@ -31,7 +32,6 @@ class Player {
     SDL_Texture* idle_texture {};
     SDL_Texture* walk_texture {};
     Spritesheet spritesheet;
-    std::array<Bullet, max_bullets / 2> bullets;
 
     float anim_timer {};
     int texture_state {};

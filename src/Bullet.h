@@ -9,10 +9,9 @@ class Bullet {
     void fire(float x, float y, float tx, float ty);
     bool isLoaded = true;
     bool isShot = false;
+    SDL_FRect hitbox;
     
     private:
-    float x;
-    float y;
     float angle;
     float vx;
     float vy;
