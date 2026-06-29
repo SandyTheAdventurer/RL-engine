@@ -2,13 +2,13 @@
 #include "Constants.h"
 
 Player::Player(float x, float y, float speed, std::string name, Controls controls)
-    : x(x),
-    y(y),
-    speed(speed),
+    : speed(speed),
     name(name),
     controls(controls)
 {
     box = {x, y, playerw, playerh};
+    hitbox = {x + playerw / 2 - hitbox_size,  y + playerh / 2 - hitbox_size,
+              hitbox_size * 2, hitbox_size * 2};
 }
 
 void Player::move(float dt) {
@@ -28,22 +28,33 @@ void Player::move(float dt) {
         dx *= 0.7071f;
 
     if (mx != 0) {
-        float nx = x + mx * dx;
+        float nx = box.x + mx * dx;
         if (nx >= 0 && nx + playerw <= screenw)
-            x = nx;
+           box.x = nx;
     }
     if (my != 0) {
-        float ny = y + my * dx;
+        float ny = box.y + my * dx;
         if (ny >= 0 && ny + playerh <= screenh)
-            y = ny;
+            box.y = ny;
     }
 
-    if (mx == 0 && my == 0) {
-        texture = idle_texture;
-    } else {
-        box.x = x;
-        box.y = y;
-        texture = walk_texture;
+    hitbox.x = box.x + playerw / 2 - hitbox_size;
+    hitbox.y = box.y + playerh / 2 - hitbox_size;
+
+    texture = (mx == 0 && my == 0) ? idle_texture : walk_texture;
+    advanceFrame(dt);
+}
+
+void Player::draw(SDL_Renderer* renderer) {
+    SDL_FRect src = get_texture_box();
+    SDL_RenderTexture(renderer, texture, &src, &box);
+}
+
+void Player::advanceFrame(float dt) {
+    anim_timer += dt;
+    if (anim_timer >= spritechange) {
+        anim_timer -= spritechange;
+        texture_state = (texture_state + 1) % 15;
     }
 }
 

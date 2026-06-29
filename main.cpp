@@ -4,6 +4,8 @@
 #include "Events.h"
 #include "Updates.h"
 #include "Player.h"
+#include "Collision.h"
+
 int main()
 {
     SDL_Init(SDL_INIT_VIDEO);
@@ -18,7 +20,6 @@ int main()
     bot.load_textures(IMG_LoadTexture(renderer, "assests/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assests/1Knight/Walk_Shadowless.png"));
     
     bool running = true;
-    float timer = 0;
     Uint64 previous = SDL_GetPerformanceCounter();
 
     while (running)
@@ -26,22 +27,17 @@ int main()
         if (pollQuit()) running = false;
 
         float dt = deltaTime(previous);
-        timer += dt;
-        if (timer > spritechange) {
-            timer = 0;
-            human.texture_state = (human.texture_state + 1) % 15;
-            bot.texture_state = (bot.texture_state + 1) % 15;
-        }
-        human.move(dt);
+
+        human.move(dt); 
         bot.move(dt);
+
+        check_players_collision(&human, &bot);
 
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
 
-        SDL_FRect human_src = human.get_texture_box();
-        SDL_FRect bot_src = bot.get_texture_box();
-        SDL_RenderTexture(renderer, bot.texture, &bot_src, &bot.box);
-        SDL_RenderTexture(renderer, human.texture, &human_src, &human.box);
+        bot.draw(renderer);
+        human.draw(renderer);
 
         SDL_RenderPresent(renderer);
     }
