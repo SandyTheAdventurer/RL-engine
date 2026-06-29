@@ -13,27 +13,34 @@ Player::Player(float x, float y, float speed, std::string name, Controls control
 
 void Player::move(float dt) {
     const bool* keys = SDL_GetKeyboardState(nullptr);
+
+    int mx = 0, my = 0;
+    if (keys[controls.up])    my = -1;
+    if (keys[controls.down])  my = 1;
+    if (keys[controls.left])  mx = -1;
+    if (keys[controls.right]) mx = 1;
+
+    if (mx != 0 || my != 0)
+        direction = {mx, -my};
+
     float dx = speed * dt;
-    if (keys[controls.up]){
-        y -= (y - dx) >= 0 ? dx : y;
-        direction = {0, 1};
+    if (mx != 0 && my != 0)
+        dx *= 0.7071f;
+
+    if (mx != 0) {
+        float nx = x + mx * dx;
+        if (nx >= 0 && nx + playerw <= screenw)
+            x = nx;
     }
-    if (keys[controls.down]){
-        y += (y + playerh + dx) <= screenh ? dx : screenh - y - playerh;
-        direction = {0, -1};
+    if (my != 0) {
+        float ny = y + my * dx;
+        if (ny >= 0 && ny + playerh <= screenh)
+            y = ny;
     }
-    if (keys[controls.left]){
-        x -= (x - dx) >= 0 ? dx : x;
-        direction = {-1, 0};
-    }
-    if (keys[controls.right]){
-        x += (x + playerw + dx) <= screenw ? dx : screenw - x - playerw;
-        direction = {1, 0};
-    }
-    if (box.x == x && box.y == y) {
+
+    if (mx == 0 && my == 0) {
         texture = idle_texture;
-    }
-    else {
+    } else {
         box.x = x;
         box.y = y;
         texture = walk_texture;
