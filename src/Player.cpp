@@ -1,5 +1,6 @@
 #include "Player.h"
 #include "Constants.h"
+#include <math.h>
 
 Player::Player(float x, float y, float speed, std::string name)
     : speed(speed),
@@ -14,7 +15,9 @@ void Player::move(float dt, PlayerIntent intent) {
     float vx = intent.mx * speed;
     float vy = intent.my * speed;
 
-    if (intent.mx != 0 || intent.my != 0)
+    if(is_firing){vx = 0; vy = 0;}
+
+    if (!is_firing && (intent.mx != 0 || intent.my != 0))
         direction = {intent.mx, -intent.my};
 
     if (intent.mx != 0 && intent.my != 0){
@@ -32,19 +35,38 @@ void Player::move(float dt, PlayerIntent intent) {
             box.y = ny;
     }
 
+    if(!is_firing){
     hitbox.x = box.x + playerw / 2 - hitbox_size;
-    hitbox.y = box.y + playerh / 2 - hitbox_size;
-
-    texture = (intent.mx == 0 && intent.my == 0) ? idle_texture : walk_texture;
+    hitbox.y = box.y + playerh / 2 - hitbox_size;}
 
     if (intent.fire) {
         for(Bullet& b: bullets) {
             if(b.isLoaded) {
                 b.fire(box.x + playerw / 2, box.y + playerh / 2, intent.aim_x, intent.aim_y);
+                is_firing = true;
+                anim_timer = 0;
+                texture_state = 0;
+
+                float aim_dx = intent.aim_x - (box.x + playerw / 2);
+                float aim_dy = (box.y + playerh / 2) - intent.aim_y;
+                float angle = std::atan2(aim_dy, aim_dx);
+                float a = std::fmod(angle + 2 * M_PI, 2 * M_PI);
+                int sector = static_cast<int>(std::floor((a + M_PI / 8.0) / (M_PI / 4.0))) % 8;
+                static constexpr std::pair<int,int> dirs[8] = {
+                    {1, 0}, {1, 1}, {0, 1}, {-1, 1},
+                    {-1, 0}, {-1, -1}, {0, -1}, {1, -1}
+                };
+                direction = dirs[sector];
+
                 break;
             }
         }
     }
+
+    if (is_firing)
+        texture = shoot_texture;
+    else
+        texture = (intent.mx == 0 && intent.my == 0) ? idle_texture : walk_texture;
 
     for(Bullet& b: bullets) {b.move(dt);}
     advanceFrame(dt);
@@ -61,14 +83,23 @@ void Player::advanceFrame(float dt) {
     anim_timer += dt;
     if (anim_timer >= spritechange) {
         anim_timer -= spritechange;
-        texture_state = (texture_state + 1) % 15;
+        if (is_firing) {
+            texture_state++;
+            if (texture_state >= 15) {
+                is_firing = false;
+                texture_state = 0;
+            }
+        } else {
+            texture_state = (texture_state + 1) % 15;
+        }
     }
 }
 
-void Player::load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* bullet)
+void Player::load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* shoot, SDL_Texture* bullet)
 {
     idle_texture = idle;
     walk_texture = walk;
+    shoot_texture = shoot;
     texture = idle;
     for(Bullet& b: bullets){b.load_textures(bullet);}
 }

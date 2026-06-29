@@ -17,8 +17,8 @@ int main()
     SDL_Window* window = SDL_CreateWindow("Hello SDL3", screenw, screenh, 0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
 
-    human.load_textures(IMG_LoadTexture(renderer, "assets/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/Walk_Shadowless.png"), IMG_LoadTexture(renderer, "assets/bullet.png"));
-    bot.load_textures(IMG_LoadTexture(renderer, "assets/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/Walk_Shadowless.png"), IMG_LoadTexture(renderer, "assets/bullet.png"));
+    human.load_textures(IMG_LoadTexture(renderer, "assets/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/Walk_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/CastSpell_Shadowless.png"), IMG_LoadTexture(renderer, "assets/bullet.png"));
+    bot.load_textures(IMG_LoadTexture(renderer, "assets/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/Walk_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/CastSpell_Shadowless.png"), IMG_LoadTexture(renderer, "assets/bullet.png"));
 
     SDL_Gamepad* ctrl = nullptr;
     int num_joysticks = 0;

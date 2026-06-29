@@ -14,7 +14,7 @@ class Player {
 
     void move(float dt, PlayerIntent intent);
     void draw(SDL_Renderer* renderer);
-    void load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* bullet);
+    void load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* shoot, SDL_Texture* bullet);
 
     float health = max_health;
     SDL_FRect box;
@@ -31,8 +31,10 @@ class Player {
     SDL_Texture* texture {};
     SDL_Texture* idle_texture {};
     SDL_Texture* walk_texture {};
+    SDL_Texture* shoot_texture {};
     Spritesheet spritesheet;
 
+    bool is_firing {};
     float anim_timer {};
     int texture_state {};
 };
