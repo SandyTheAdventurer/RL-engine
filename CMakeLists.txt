@@ -11,7 +11,7 @@ find_package(spdlog REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(fmt REQUIRED)
 
-add_executable(RL-engine main.cpp src/Player.cpp src/Bullet.cpp src/Input.cpp src/Events.cpp src/Collision.cpp src/Updates.cpp src/Structures.cpp src/SocketClient.cpp)
+add_executable(RL-engine main.cpp src/Player.cpp src/Bullet.cpp src/Input.cpp src/Events.cpp src/Collision.cpp src/Updates.cpp src/Structures.cpp src/SocketClient.cpp src/State.cpp)
 target_include_directories(RL-engine PRIVATE src)
 
 target_link_libraries(RL-engine PRIVATE SDL3::SDL3 SDL3_image::SDL3_image SDL3_ttf::SDL3_ttf ixwebsocket nlohmann_json ZLIB::ZLIB spdlog::spdlog fmt::fmt)

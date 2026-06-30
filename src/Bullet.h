@@ -1,5 +1,6 @@
 #pragma once
 #include <SDL3/SDL.h>
+#include <array>
 
 class Bullet {
     public:
@@ -9,6 +10,7 @@ class Bullet {
     void fire(float x, float y, float tx, float ty);
     bool isLoaded = true;
     bool isShot = false;
+    std::array<float, 2> getVel() const;
     SDL_FRect hitbox;
     
     private:

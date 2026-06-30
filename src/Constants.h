@@ -21,6 +21,7 @@ inline constexpr float bar_y_offset {15.0f};
 enum class GameState {
     START,
     PLAYING,
+    TRAINING,
     END
 };
 
