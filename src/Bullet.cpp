@@ -37,3 +37,7 @@ void Bullet::draw(SDL_Renderer* renderer) {
 void Bullet::load_textures(SDL_Texture* texture) {
     this->texture = texture;
 }
+
+std::array<float, 2> Bullet::getVel() const {
+    return {vx, vy};
+}

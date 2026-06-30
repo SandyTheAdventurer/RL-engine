@@ -17,6 +17,7 @@ class Player {
     void load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* shoot, SDL_Texture* bullet);
     void reset(float x, float y);
 
+    float speed;
     float health = max_health;
     SDL_FRect box;
     SDL_FRect hitbox;
@@ -26,7 +27,6 @@ class Player {
     void advanceFrame(float dt);
     SDL_FRect get_texture_box();
 
-    float speed;
     std::string name;
     std::pair<int,int> direction = {1, 0};
     SDL_Texture* texture {};
