@@ -30,7 +30,6 @@ int main(int argc, char* argv[])
     SDL_Window* window = SDL_CreateWindow("Hello SDL3", screenw, screenh, 0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
     spdlog::info("Window and renderer created");
-
     human.load_textures(IMG_LoadTexture(renderer, "assets/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/Walk_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/CastSpell_Shadowless.png"), IMG_LoadTexture(renderer, "assets/bullet.png"));
     bot.load_textures(IMG_LoadTexture(renderer, "assets/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/Walk_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/CastSpell_Shadowless.png"), IMG_LoadTexture(renderer, "assets/bullet.png"));
 
@@ -77,11 +76,18 @@ int main(int argc, char* argv[])
         max_data = state[0];
         max_train = state[1];
     }
+    spdlog::info("Collecting data for {}", max_data);
+    spdlog::info("Training for {}", max_train);
     Uint64 previous = SDL_GetPerformanceCounter();
     bool prev_fire_btn = false;
 
     GameState state = GameState::START;
     GameState prev_state = GameState::END;
+    PlayerIntent last_bot_intent;
+    PlayerIntent last_human_intent;
+    int frame_counter = 0;
+    bool prev_bot_fire = false;
+    bool prev_human_fire = false;
 
     while (running)
     {
@@ -118,33 +124,46 @@ int main(int argc, char* argv[])
 
             case GameState::PLAYING:
             {
+                SDL_SetRenderVSync(renderer, 1);
                 train_counter = 0;
                 float dt = deltaTime(previous);
 
                 PlayerIntent human_intent = getHumanIntent(input);
                 human.move(dt, human_intent);
                 PlayerIntent intent = getBotIntent(ctrl, bot.box, prev_fire_btn);
-                PlayerIntent rlintent;
-                if(client.isConnected() && client.pollIntent(rlintent)) {
-                    intent = rlintent;
+                if (frame_counter % FRAME_SKIP == 0) {
+                    prev_bot_fire = false;
+                    PlayerIntent fresh;
+                    if(client.isConnected() && client.pollIntent(fresh)) {
+                        last_bot_intent = fresh;
+                    }
+                }
+                if(client.isConnected()) {
+                    intent = last_bot_intent;
+                    bool raw_fire = intent.fire;
+                    intent.fire = raw_fire && !prev_bot_fire;
+                    prev_bot_fire = raw_fire;
                 }
                 bot.move(dt, intent);
 
                 check_players_collision(&human, &bot);
                 check_bullet_collision(&human, &bot);
 
-                if(client.isConnected()) {
-                    nlohmann::json msg;
-                    msg["game_state"] = "PLAYING";
-                    msg["self"] = State::extract(human, bot);
-                    msg["expert_action"] = {
-                        {"mx", human_intent.mx},
-                        {"my", human_intent.my},
-                        {"fire", human_intent.fire},
-                        {"aim_x", human_intent.aim_x},
-                        {"aim_y", human_intent.aim_y}
-                    };
-                    client.sendState(msg.dump());
+                if (frame_counter % FRAME_SKIP == 0) {
+                    if(client.isConnected()) {
+                        nlohmann::json msg;
+                        msg["game_state"] = "PLAYING";
+                        msg["role"] = "agent";
+                        msg["self"] = State::extract(human, bot);
+                        msg["expert_action"] = {
+                            {"mx", human_intent.mx},
+                            {"my", human_intent.my},
+                            {"fire", human_intent.fire},
+                            {"aim_x", human_intent.aim_x},
+                            {"aim_y", human_intent.aim_y}
+                        };
+                        client.sendState(msg.dump());
+                    }
                 }
 
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
@@ -173,37 +192,56 @@ int main(int argc, char* argv[])
 
             case GameState::TRAINING:
             {
+                SDL_SetRenderVSync(renderer, 0);
                 data_counter = 0;
                 if(!clclient.isConnected()) {
                     clclient.connect();
                 }
                 float dt = deltaTime(previous);
-                PlayerIntent human_intent;
-                PlayerIntent bot_intent;
-                if(client.isConnected()) {
-                    client.pollIntent(bot_intent);
+                if (frame_counter % FRAME_SKIP == 0) {
+                    prev_bot_fire = false;
+                    prev_human_fire = false;
+                    PlayerIntent fresh_human;
+                    PlayerIntent fresh_bot;
+                    if(client.isConnected() && client.pollIntent(fresh_bot)) {
+                        last_bot_intent = fresh_bot;
+                    }
+                    if(clclient.isConnected() && clclient.pollIntent(fresh_human)) {
+                        last_human_intent = fresh_human;
+                    }
                 }
-                if(clclient.isConnected()) {
-                    clclient.pollIntent(human_intent);
+                {
+                    bool raw_fire = last_human_intent.fire;
+                    last_human_intent.fire = raw_fire && !prev_human_fire;
+                    prev_human_fire = raw_fire;
                 }
-                human.move(dt, human_intent);
-                bot.move(dt, bot_intent);
+                {
+                    bool raw_fire = last_bot_intent.fire;
+                    last_bot_intent.fire = raw_fire && !prev_bot_fire;
+                    prev_bot_fire = raw_fire;
+                }
+                human.move(dt, last_human_intent);
+                bot.move(dt, last_bot_intent);
 
                 check_players_collision(&human, &bot);
                 check_bullet_collision(&human, &bot);
 
-                if(client.isConnected()) {
-                    nlohmann::json msg;
-                    msg["game_state"] = "TRAINING";
-                    msg["self"] = State::extract(human, bot);
-                    client.sendState(msg.dump());
-                }
+                if (frame_counter % FRAME_SKIP == 0) {
+                    if(client.isConnected()) {
+                        nlohmann::json msg;
+                        msg["game_state"] = "TRAINING";
+                        msg["role"] = "agent";
+                        msg["self"] = State::extract(human, bot);
+                        client.sendState(msg.dump());
+                    }
 
-                if(clclient.isConnected()) {
-                    nlohmann::json msg;
-                    msg["game_state"] = "TRAINING";
-                    msg["self"] = State::extract(bot, human);
-                    clclient.sendState(msg.dump());
+                    if(clclient.isConnected()) {
+                        nlohmann::json msg;
+                        msg["game_state"] = "TRAINING";
+                        msg["role"] = "clone";
+                        msg["self"] = State::extract(bot, human);
+                        clclient.sendState(msg.dump());
+                    }
                 }
 
                 SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -246,6 +284,7 @@ int main(int argc, char* argv[])
             }
         }
 
+        frame_counter++;
         SDL_RenderPresent(renderer);
     }
 

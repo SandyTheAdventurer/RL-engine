@@ -11,6 +11,9 @@ json State::extract(const Player& self, const Player& enemy) {
     float enemy_health = enemy.health;
     float x = self.box.x;
     float y = self.box.y;
+    float enemy_x = enemy.box.x;
+    float enemy_y = enemy.box.y;
+    float enemy_speed = enemy.speed;
     std::array<bool, max_bullets / 2> bullets_fired;
     std::array<bool, max_bullets / 2> bullets_reloaded;
     std::array<std::array<float, 2>, max_bullets> bullets_pos;
@@ -41,7 +44,10 @@ json State::extract(const Player& self, const Player& enemy) {
         {"enemy_health", enemy_health},
         {"x", x},
         {"y", y},
+        {"enemy_x", enemy_x},
+        {"enemy_y", enemy_y},
         {"speed", speed},
+        {"enemy_speed", enemy_speed},
         {"bullets_fired", bullets_fired},
         {"bullets_reloaded", bullets_reloaded},
         {"bullets_pos", bullets_pos},

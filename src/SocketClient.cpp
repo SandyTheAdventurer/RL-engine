@@ -1,5 +1,6 @@
 #include <string>
 #include <mutex>
+#include <thread>
 #include <ixwebsocket/IXWebSocket.h>
 #include <ixwebsocket/IXNetSystem.h>
 #include <nlohmann/json.hpp>
@@ -44,6 +45,7 @@ void SocketClient::connect() {
                 }
                 else{
                     train_state = {j.value("data_iter", 5), j.value("train_iter", 100)};
+                    config_received = true;
                 }
             }
             catch(json::parse_error) {spdlog::error("Error in parsing JSON response");}
@@ -80,5 +82,10 @@ bool SocketClient::pollIntent(PlayerIntent& out){
 }
 
 std::array<int, 2> SocketClient::getTrainState() {
+    int waited = 0;
+    while(!config_received && waited < 5000) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        waited++;
+    }
     return train_state;
 }
