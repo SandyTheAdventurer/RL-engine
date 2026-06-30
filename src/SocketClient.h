@@ -4,6 +4,7 @@
 #include <mutex>
 #include <queue>
 #include <array>
+#include <atomic>
 #include "Constants.h"
 namespace ix { class WebSocket; }
 
@@ -22,7 +23,8 @@ class SocketClient {
     private:
         std::unique_ptr<ix::WebSocket> ws;
         std::queue<PlayerIntent> queue;
-        std::array<int, 2> train_state;
+        std::array<int, 2> train_state = {0, 0};
+        std::atomic<bool> config_received = false;
         const std::string url;
         std::mutex mutex;
         bool is_connected = false;
