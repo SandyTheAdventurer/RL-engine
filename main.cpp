@@ -1,12 +1,16 @@
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
+#include <nlohmann/json.hpp>
 #include "Constants.h"
 #include "Events.h"
 #include "Updates.h"
 #include "Player.h"
+#include "SocketClient.h"
 #include "Collision.h"
 #include "Input.h"
+
+using json = nlohmann::json;
 
 static SDL_Texture* make_text(SDL_Renderer* r, TTF_Font* f, const char* t, SDL_Color c) {
     SDL_Surface* s = TTF_RenderText_Blended(f, t, SDL_strlen(t), c);
@@ -28,6 +32,9 @@ int main()
 
     human.load_textures(IMG_LoadTexture(renderer, "assets/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/Walk_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/CastSpell_Shadowless.png"), IMG_LoadTexture(renderer, "assets/bullet.png"));
     bot.load_textures(IMG_LoadTexture(renderer, "assets/1Knight/Idle_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/Walk_Shadowless.png"), IMG_LoadTexture(renderer, "assets/1Knight/CastSpell_Shadowless.png"), IMG_LoadTexture(renderer, "assets/bullet.png"));
+
+    SocketClient client;
+    client.connect();
 
     TTF_Font* font = TTF_OpenFont("assets/LiberationSans-Regular.ttf", font_size);
     SDL_Color white = {255, 255, 255, 255};
@@ -82,7 +89,21 @@ int main()
                 float dt = deltaTime(previous);
 
                 human.move(dt, getHumanIntent(input));
-                bot.move(dt, getBotIntent(ctrl, bot.box, prev_fire_btn));
+                PlayerIntent intent = getBotIntent(ctrl, bot.box, prev_fire_btn);
+                PlayerIntent rlintent;
+                if(client.isConnected() && client.pollIntent(rlintent)) {
+                    intent = rlintent;
+                }
+                bot.move(dt, intent);
+
+                if(client.isConnected()) {
+                    json state = {
+                    {"x", bot.box.x},
+                    {"y", bot.box.y},
+                    {"health", bot.health}
+                    };
+                    client.sendState(state.dump());
+                }
 
                 check_players_collision(&human, &bot);
                 check_bullet_collision(&human, &bot);
