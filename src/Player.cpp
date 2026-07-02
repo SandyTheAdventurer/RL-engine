@@ -11,9 +11,12 @@ Player::Player(float x, float y, float speed, std::string name)
               hitbox_size * 2, hitbox_size * 2};
 }
 
+Player::~Player() {
+}
+
 void Player::move(float dt, PlayerIntent intent) {
-    float vx = intent.mx * speed;
-    float vy = intent.my * speed;
+    vx = intent.mx * speed;
+    vy = intent.my * speed;
 
     if(is_firing){vx = 0; vy = 0;}
 
@@ -45,6 +48,7 @@ void Player::move(float dt, PlayerIntent intent) {
                 b.fire(box.x + playerw / 2, box.y + playerh / 2, intent.aim_x, intent.aim_y);
                 is_firing = true;
                 anim_timer = 0;
+                fire_anim_timer = 0;
                 texture_state = 0;
 
                 float aim_dx = intent.aim_x - (box.x + playerw / 2);
@@ -90,16 +94,20 @@ void Player::draw(SDL_Renderer* renderer) {
 }
 
 void Player::advanceFrame(float dt) {
-    anim_timer += dt;
-    if (anim_timer >= spritechange) {
-        anim_timer -= spritechange;
-        if (is_firing) {
+    if (is_firing) {
+        fire_anim_timer += dt;
+        if (fire_anim_timer >= fire_spritechange) {
+            fire_anim_timer -= fire_spritechange;
             texture_state++;
             if (texture_state >= 15) {
                 is_firing = false;
                 texture_state = 0;
             }
-        } else {
+        }
+    } else {
+        anim_timer += dt;
+        if (anim_timer >= spritechange) {
+            anim_timer -= spritechange;
             texture_state = (texture_state + 1) % 15;
         }
     }

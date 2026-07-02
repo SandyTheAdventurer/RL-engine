@@ -10,9 +10,26 @@ except ImportError:
     from utils import *
 
 
-class PPOBuffer:
-    def __init__(self):
+class PPORolloutWorker:
+    """Manages environment transitions, reward calculation, and trajectory buffering.
+
+    Note: this class does NOT trigger training updates itself. Callers should
+    call `worker.maybe_update()` after each `step()` (or check
+    `worker.ready_for_update()` and call `agent.update(worker)` /
+    `worker.clear()` manually). Keeping the update trigger out of `step()`
+    means "collect a transition" and "run a gradient step" are separate,
+    testable operations instead of one hiding inside the other.
+    """
+
+    def __init__(self, agent, update_interval=500):
+        self.agent = agent
+        self.update_interval = update_interval
+
+        self.episode_reward = 0
         self.clear()
+        self.reset_step_state()
+
+    # -- buffer management (formerly PPOBuffer) ------------------------------
 
     def clear(self):
         self.obs = []
@@ -52,15 +69,10 @@ class PPOBuffer:
     def __len__(self):
         return len(self.obs)
 
-class PPORolloutWorker:
-    """Manages environment transitions, reward calculation, and continuous buffer auto-updates."""
-    def __init__(self, agent, buffer, update_interval=500):
-        self.agent = agent
-        self.buffer = buffer
-        self.update_interval = update_interval
-        
-        self.episode_reward = 0
-        self.reset_step_state()
+    def ready_for_update(self):
+        return len(self) >= self.update_interval
+
+    # -- rollout stepping -----------------------------------------------
 
     def reset_step_state(self):
         self.prev_obs = None
@@ -74,31 +86,26 @@ class PPORolloutWorker:
         self.prev_bot_health = None
 
     def step(self, obs_t, health, enemy_health):
-        """Processes a single step, calculates reward, updates buffer, and returns new actions."""
+        """Processes a single step, calculates reward, appends the previous
+        transition to the buffer, and returns new actions. Does not train --
+        call `maybe_update()` (or check `ready_for_update()`) separately."""
         reward = 0
         if self.prev_human_health is not None:
-            reward = (self.prev_human_health - health)
-            reward -= (self.prev_bot_health - enemy_health)
+            reward = (health - self.prev_human_health)
+            reward += (self.prev_bot_health - enemy_health)
 
         done = health <= 0 or enemy_health <= 0
 
         # Store transition
         if self.prev_obs is not None:
             aim_clamped = torch.clamp(self.prev_aim, -0.999, 0.999)
-            self.buffer.add(
+            self.add(
                 self.prev_obs.squeeze(0), self.prev_mx, self.prev_my,
                 self.prev_fire, aim_clamped, self.prev_log_prob,
                 reward, done, self.prev_value
             )
 
         self.episode_reward += reward
-
-        # Continuous Learning: Auto-update and flush when buffer is full
-        if len(self.buffer) >= self.update_interval:
-            loss = self.agent.update(self.buffer)
-            print(f"PPO update: reward={self.episode_reward:.1f} loss={loss['loss']:.4f}")
-            self.buffer.clear()
-            self.episode_reward = 0
 
         # Reset state on game over
         if done:
@@ -120,6 +127,17 @@ class PPORolloutWorker:
         self.prev_value = value.detach()
 
         return mx, my, fire, aim
+
+    def maybe_update(self):
+        """Runs a PPO update and clears the buffer if enough transitions have
+        been collected. Returns the stats dict, or None if not ready yet."""
+        if not self.ready_for_update():
+            return None
+        stats = self.agent.update(self)
+        print(f"PPO update: reward={self.episode_reward:.1f} loss={stats['loss']:.4f}")
+        self.clear()
+        self.episode_reward = 0
+        return stats
 
 class PPO(nn.Module):
     def __init__(self, config, device='cpu'):
@@ -163,7 +181,8 @@ class PPO(nn.Module):
         self.value_head = nn.Linear(self.hidden_dim, 1)
 
         norm_array = [
-            1000, 1000, self.screenw, self.screenh, self.screenw, self.screenh, 200, 200,
+            1000, 1000, self.screenw, self.screenh, self.screenw, self.screenh,
+            200, 200, 200, 200,
             *[1]*6, *[1]*6,
             *[self.screenw, self.screenh]*12,
             *[750, 750]*12,

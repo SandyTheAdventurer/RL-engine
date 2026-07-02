@@ -3,6 +3,7 @@
 
 FrameInput pollEvents() {
     FrameInput input;
+    SDL_GetMouseState(&input.mouse_x, &input.mouse_y);
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_EVENT_QUIT)
@@ -15,8 +16,6 @@ FrameInput pollEvents() {
             if(event.button.button == SDL_BUTTON_RIGHT) {
                 input.mouse_right_clicked = true;
             }
-            input.mouse_x = event.button.x;
-            input.mouse_y = event.button.y;
         }
     }
     return input;

@@ -22,7 +22,7 @@ class BC(nn.Module):
         
         # Loss weighting from config (with defaults)
         self.w_move = config.get("w_move", 1.0)
-        self.w_fire = config.get("w_fire", 5.0)
+        self.w_fire = config.get("w_fire", 1.0)
         self.w_aim = config.get("w_aim", 0.5)
         dropout_rate = config.get("dropout", 0.1)
 
@@ -48,7 +48,7 @@ class BC(nn.Module):
         self.aim_mean = nn.Linear(self.hidden_dim, 2)
         self.aim_log_std = nn.Linear(self.hidden_dim, 2)
 
-        self.optim = torch.optim.Adam(self.parameters(), lr=config['lr'])
+        self.optim = torch.optim.Adam(self.parameters(), lr=config['lr'], weight_decay=config.get("weight_decay", 0.0))
 
         self.to(self.device)
 
@@ -69,7 +69,8 @@ class BC(nn.Module):
 
         # Original hardcoded normalization retained
         self.norm = np.array([
-            1000, 1000, self.screenw, self.screenh, self.screenw, self.screenh, 200, 200,
+            1000, 1000, self.screenw, self.screenh, self.screenw, self.screenh,
+            200, 200, 200, 200,
             *[1]*6, *[1]*6,
             *[self.screenw, self.screenh]*12,
             *[750, 750]*12,
@@ -93,6 +94,10 @@ class BC(nn.Module):
 
         is_active = (mx_vals != 0) | (my_vals != 0) | (fire_vals > 0.5)
         weights = np.where(is_active, 6.0, 1.0).astype(np.float32)
+
+        n_pos = max(fire_vals.sum(), 1)
+        n_neg = max(len(fire_vals) - fire_vals.sum(), 1)
+        self.fire_pos_weight = n_neg / n_pos
 
         # Removed .to(self.device) to prevent GPU memory crashes during preprocessing
         self.obs = torch.tensor(obs_flat, dtype=torch.float32)
@@ -132,12 +137,12 @@ class BC(nn.Module):
         loss_mx = F.cross_entropy(mx_logits, mx_gt, reduction='none')
         loss_my = F.cross_entropy(my_logits, my_gt, reduction='none')
         loss_fire = F.binary_cross_entropy_with_logits(
-            fire_logit.squeeze(1), fire_gt, reduction='none'
+            fire_logit.squeeze(1), fire_gt, reduction='none',
+            pos_weight=torch.tensor(self.fire_pos_weight, device=fire_gt.device)
         )
-        aim_std = torch.exp(aim_log_sigma)
-        aim_dist = TanhGaussian(aim_mu, aim_std)
         aim_clamped = torch.clamp(aim_gt, -0.999, 0.999)
-        loss_aim = -aim_dist.log_prob(aim_clamped).mean(dim=1)
+        loss_aim = F.mse_loss(torch.tanh(aim_mu), aim_clamped, reduction='none').mean(dim=1)
+        loss_aim = loss_aim * fire_gt
 
         # Scaled multi-task loss calculation
         per_frame = (loss_mx + loss_my) * self.w_move + (loss_fire * self.w_fire) + (loss_aim * self.w_aim)
