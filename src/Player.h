@@ -3,7 +3,6 @@
 #include <array>
 #include <utility>
 #include <SDL3/SDL.h>
-#include <SDL3_image/SDL_image.h>
 #include "Structures.h"
 #include "Bullet.h"
 #include "Constants.h"
@@ -11,6 +10,7 @@
 class Player {
     public:
     Player(float x, float y, float speed, std::string name);
+    ~Player();
 
     void move(float dt, PlayerIntent intent);
     void draw(SDL_Renderer* renderer);
@@ -18,6 +18,7 @@ class Player {
     void reset(float x, float y);
 
     float speed;
+    float vx = 0, vy = 0;
     float health = max_health;
     SDL_FRect box;
     SDL_FRect hitbox;
@@ -37,5 +38,6 @@ class Player {
 
     bool is_firing {};
     float anim_timer {};
+    float fire_anim_timer {};
     int texture_state {};
 };

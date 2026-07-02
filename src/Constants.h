@@ -8,6 +8,7 @@ inline constexpr int playerh {150};
 inline constexpr float playerspeed {200.0f};
 inline constexpr int max_health = {1000};
 inline constexpr float spritechange {1.0f / 30};
+inline constexpr float fire_spritechange {1.0f / 60};
 inline constexpr float hitbox_size {24.0f};
 inline constexpr float bullet_speed {750.0f};
 inline constexpr float bullet_damage {100.0f};
@@ -15,9 +16,14 @@ inline constexpr int bulletw {30};
 inline constexpr int bulleth {30};
 inline constexpr int max_bullets {12};
 inline constexpr int font_size {20};
-inline constexpr int FRAME_SKIP {3};
+inline constexpr int FRAME_SKIP {5};
 inline constexpr float bar_h {10.0f};
 inline constexpr float bar_y_offset {15.0f};
+
+inline constexpr const char* idle_sheet_path = {"assets/1Knight/Idle_Shadowless.png"};
+inline constexpr const char* walk_sheet_path = {"assets/1Knight/Walk_Shadowless.png"};
+inline constexpr const char* shoot_sheet_path = {"assets/1Knight/CastSpell_Shadowless.png"};
+inline constexpr const char* bullet_sheet_path = {"assets/bullet.png"};
 
 enum class GameState {
     START,
@@ -30,7 +36,7 @@ struct FrameInput {
     bool quit = false;
     bool mouse_left_clicked = false;
     bool mouse_right_clicked = false;
-    float mouse_x, mouse_y;
+    float mouse_x = 0, mouse_y = 0;
 };
 
 struct PlayerIntent {

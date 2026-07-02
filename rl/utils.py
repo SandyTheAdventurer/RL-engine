@@ -1,6 +1,10 @@
 import torch
 import numpy as np
 from torch.utils.data import Dataset
+import sys
+import os
+sys.path.append(os.path.abspath("./build"))
+from Game import PlayerIntent
 
 class TanhGaussian(torch.distributions.TransformedDistribution):
     def __init__(self, loc, scale):
@@ -45,8 +49,10 @@ def flatten_obs(row):
     y = [row['y']]
     enemy_x = [row['enemy_x']]
     enemy_y = [row['enemy_y']]
-    speed = [row['speed']]
-    enemy_speed = [row['enemy_speed']]
+    vx = [row.get('vx', 0.0)]
+    vy = [row.get('vy', 0.0)]
+    enemy_vx = [row.get('enemy_vx', 0.0)]
+    enemy_vy = [row.get('enemy_vy', 0.0)]
     
     bullets_fired = np.atleast_1d(np.array(row['bullets_fired'], dtype=np.float32))
     bullets_reloaded = np.atleast_1d(np.array(row['bullets_reloaded'], dtype=np.float32))
@@ -55,7 +61,8 @@ def flatten_obs(row):
     bullets_vel = np.atleast_1d(np.array(row['bullets_vel'], dtype=np.float32).flatten())
     
     obs = np.concatenate([
-        health, enemy_health, x, y, enemy_x, enemy_y, speed, enemy_speed,
+        health, enemy_health, x, y, enemy_x, enemy_y,
+        vx, vy, enemy_vx, enemy_vy,
         bullets_fired, bullets_reloaded, 
         bullets_pos, bullets_vel
     ])
@@ -65,13 +72,5 @@ def to_tensor(obs, device):
     """Converts a flat numpy array to a batched PyTorch tensor."""
     return torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
 
-def format_intent(mx, my, fire, aim, screenw=1080, screenh=720):
-    """Converts raw model outputs into the JSON structure expected by the C++ client."""
-    return {
-        "type": "intent",
-        "mx": [-1, 0, 1][mx.item()],
-        "my": [-1, 0, 1][my.item()],
-        "fire": bool(fire.item()),
-        "aim_x": (aim[0, 0].item() + 1) / 2 * screenw,
-        "aim_y": (aim[0, 1].item() + 1) / 2 * screenh,
-    }
+def get_intent() -> PlayerIntent:
+    pass
