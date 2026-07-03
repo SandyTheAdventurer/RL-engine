@@ -37,9 +37,13 @@ Engine::~Engine() {
     close();
 }
 
-void Engine::reset() {
-    p1.reset((screenw / 2.0f) - playerw * 2, (screenh - playerh) / 2.0f);
-    p2.reset((screenw / 2.0f) + playerw, (screenh - playerh) / 2.0f);
+void Engine::reset(float p1_x, float p1_y, float p2_x, float p2_y) {
+    if (p1_x < 0) p1_x = (screenw / 2.0f) - playerw * 2;
+    if (p1_y < 0) p1_y = (screenh - playerh) / 2.0f;
+    if (p2_x < 0) p2_x = (screenw / 2.0f) + playerw;
+    if (p2_y < 0) p2_y = (screenh - playerh) / 2.0f;
+    p1.reset(p1_x, p1_y);
+    p2.reset(p2_x, p2_y);
     done = false;
 }
 
@@ -70,10 +74,10 @@ std::array<float, 70> Engine::observe(const Player& self, const Player& enemy) {
 
     obs[i++] = self.health;
     obs[i++] = enemy.health;
-    obs[i++] = self.box.x;
-    obs[i++] = self.box.y;
-    obs[i++] = enemy.box.x;
-    obs[i++] = enemy.box.y;
+    obs[i++] = self.box.x + playerw / 2.0f;
+    obs[i++] = self.box.y + playerh / 2.0f;
+    obs[i++] = enemy.box.x + playerw / 2.0f;
+    obs[i++] = enemy.box.y + playerh / 2.0f;
     obs[i++] = self.vx;
     obs[i++] = self.vy;
     obs[i++] = enemy.vx;
