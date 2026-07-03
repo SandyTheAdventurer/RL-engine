@@ -13,7 +13,7 @@ public:
     void render();
     void present();
     std::array<float, 70> observe(const Player& self, const Player& enemy);
-    void reset();
+    void reset(float p1_x = -1, float p1_y = -1, float p2_x = -1, float p2_y = -1);
     void close();
 
     bool is_done() const { return done; }

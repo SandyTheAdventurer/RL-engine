@@ -43,14 +43,14 @@ void check_players_collision(Player* human, Player* bot) {
 void check_bullet_collision(Player* human, Player* bot) {
     for(Bullet& b: human->bullets) {
         if(b.isShot && aabb(b.hitbox, bot->hitbox)) {
-            bot->health -= bullet_damage;
+            bot->health -= rand() % 10 + 1;
             b.isShot = false;
             b.isLoaded = true;
         }
     }
     for(Bullet& b: bot->bullets) {
         if(b.isShot && aabb(b.hitbox, human->hitbox)) {
-            human->health -= bullet_damage;
+            human->health -= rand() % 10 + 1;
             b.isShot = false;
             b.isLoaded = true;
         }

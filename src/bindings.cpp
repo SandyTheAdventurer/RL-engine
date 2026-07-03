@@ -53,7 +53,9 @@ PYBIND11_MODULE(Game, m) {
         .def("observe", [](Engine& self, Player& self_player, Player& enemy) {
             return obs_to_numpy(self.observe(self_player, enemy));
         })
-        .def("reset", &Engine::reset)
+        .def("reset", &Engine::reset,
+             py::arg("p1_x") = -1.0f, py::arg("p1_y") = -1.0f,
+             py::arg("p2_x") = -1.0f, py::arg("p2_y") = -1.0f)
         .def("close", &Engine::close)
         .def("is_done", &Engine::is_done)
         .def("player1", &Engine::player1, py::return_value_policy::reference)

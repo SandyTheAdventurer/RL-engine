@@ -12,7 +12,7 @@ class Bullet {
     bool isShot = false;
     std::array<float, 2> getVel() const;
     SDL_FRect hitbox;
-    
+
     private:
     float angle;
     float vx;
