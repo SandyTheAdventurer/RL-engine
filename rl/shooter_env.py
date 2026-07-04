@@ -12,7 +12,7 @@ from rl.bots import BOTS
 ENGINE_DT = 1.0 / 60.0
 AIM_DIRECTIONS = 16
 AIM_RADIUS = 1000.0
-OBS_DIM = 70
+OBS_DIM = 72
 
 OBS_SELF_X = 2
 OBS_SELF_Y = 3
@@ -34,6 +34,7 @@ class ShooterEnv(gym.Env):
             spaces.Discrete(3),
             spaces.Discrete(3),
             spaces.Discrete(2),
+            spaces.Discrete(2),
             spaces.Discrete(AIM_DIRECTIONS),
         ))
         self.observation_space = spaces.Box(
@@ -50,12 +51,13 @@ class ShooterEnv(gym.Env):
         mx = int(action[0]) - 1
         my = int(action[1]) - 1
         fire = bool(action[2])
-        bucket = int(action[3])
+        dash = bool(action[3])
+        bucket = int(action[4])
         angle = bucket * (2.0 * math.pi / AIM_DIRECTIONS)
         cx, cy = center_xy
         aim_x = cx + math.cos(angle) * AIM_RADIUS
         aim_y = cy - math.sin(angle) * AIM_RADIUS
-        return Game.PlayerIntent(mx, my, fire, aim_x, aim_y)
+        return Game.PlayerIntent(mx, my, fire, dash, aim_x, aim_y)
 
     def _make_bot(self):
         if self.opponent_name is None:
@@ -68,8 +70,8 @@ class ShooterEnv(gym.Env):
             return Game.PlayerIntent(0, 0, False, 0.0, 0.0)
         if self.opponent_name == "human":
             return self._bot.act(self._bot_obs, ENGINE_DT)
-        mx, my, fire, aim_x, aim_y = self._bot.act(self._bot_obs, ENGINE_DT)
-        return Game.PlayerIntent(int(mx), int(my), bool(fire), float(aim_x), float(aim_y))
+        mx, my, fire, dash, reload, aim_x, aim_y = self._bot.act(self._bot_obs, ENGINE_DT)
+        return Game.PlayerIntent(int(mx), int(my), bool(fire), bool(dash), bool(reload), float(aim_x), float(aim_y))
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
