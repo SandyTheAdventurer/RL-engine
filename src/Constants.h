@@ -15,12 +15,21 @@ inline constexpr float bullet_speed {750.0f};
 inline constexpr int bulletw {30};
 inline constexpr int bulleth {30};
 inline constexpr int max_bullets {12};
+inline constexpr int max_ammo {6};
+inline constexpr float fire_rate {0.3f};
+inline constexpr float reload_time {1.5f};
 inline constexpr int font_size {20};
 inline constexpr float bar_h {10.0f};
 inline constexpr float bar_y_offset {15.0f};
 
+inline constexpr float dash_distance = 50.0f;
+inline constexpr float dash_blink_duration = 0.2f;
+inline constexpr float dash_cooldown = 0.6f;
+inline constexpr float dash_speed = dash_distance / dash_blink_duration;
+
 inline constexpr const char* idle_sheet_path = {"assets/1Knight/Idle_Shadowless.png"};
 inline constexpr const char* walk_sheet_path = {"assets/1Knight/Walk_Shadowless.png"};
+inline constexpr const char* run_sheet_path = {"assets/1Knight/Run_Shadowless.png"};
 inline constexpr const char* shoot_sheet_path = {"assets/1Knight/CastSpell_Shadowless.png"};
 inline constexpr const char* bullet_sheet_path = {"assets/bullet.png"};
 
@@ -41,6 +50,8 @@ struct FrameInput {
 struct PlayerIntent {
     int mx = 0, my = 0;
     bool fire = false;
+    bool dash = false;
+    bool reload = false;
     float aim_x = 0, aim_y = 0;
 };
 

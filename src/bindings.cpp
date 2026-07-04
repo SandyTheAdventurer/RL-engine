@@ -8,8 +8,8 @@
 
 namespace py = pybind11;
 
-py::array_t<float> obs_to_numpy(const std::array<float, 70>& obs) {
-    auto arr = py::array_t<float>(70);
+py::array_t<float> obs_to_numpy(const std::array<float, 72>& obs) {
+    auto arr = py::array_t<float>(72);
     std::copy(obs.begin(), obs.end(), arr.mutable_data());
     return arr;
 }
@@ -23,13 +23,16 @@ PYBIND11_MODULE(Game, m) {
         .def_readonly("mouse_y", &FrameInput::mouse_y);
 
     py::class_<PlayerIntent>(m, "PlayerIntent")
-        .def(py::init<int, int, bool, float, float>(),
+        .def(py::init<int, int, bool, bool, bool, float, float>(),
              py::arg("mx") = 0, py::arg("my") = 0,
-             py::arg("fire") = false,
+             py::arg("fire") = false, py::arg("dash") = false,
+             py::arg("reload") = false,
              py::arg("aim_x") = 0.0f, py::arg("aim_y") = 0.0f)
         .def_readwrite("mx", &PlayerIntent::mx)
         .def_readwrite("my", &PlayerIntent::my)
         .def_readwrite("fire", &PlayerIntent::fire)
+        .def_readwrite("dash", &PlayerIntent::dash)
+        .def_readwrite("reload", &PlayerIntent::reload)
         .def_readwrite("aim_x", &PlayerIntent::aim_x)
         .def_readwrite("aim_y", &PlayerIntent::aim_y);
 
@@ -39,6 +42,8 @@ PYBIND11_MODULE(Game, m) {
         .def("move", &Player::move)
         .def("reset", &Player::reset)
         .def_readonly("health", &Player::health)
+        .def_readonly("ammo", &Player::ammo)
+        .def_readonly("is_reloading", &Player::is_reloading)
         .def_readonly("vx", &Player::vx)
         .def_readonly("vy", &Player::vy);
 

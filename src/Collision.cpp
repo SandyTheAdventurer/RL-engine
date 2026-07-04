@@ -9,6 +9,7 @@ bool aabb(const SDL_FRect& a, const SDL_FRect& b) {
 }
 
 void check_players_collision(Player* human, Player* bot) {
+    if (human->is_dashing || bot->is_dashing) return;
     if (aabb(human->hitbox, bot->hitbox)) {
         float overlap_x = (human->hitbox.w + bot->hitbox.w) / 2.0f - std::abs(human->hitbox.x - bot->hitbox.x);
         float overlap_y = (human->hitbox.h + bot->hitbox.h) / 2.0f - std::abs(human->hitbox.y - bot->hitbox.y);
@@ -42,6 +43,7 @@ void check_players_collision(Player* human, Player* bot) {
 
 void check_bullet_collision(Player* human, Player* bot) {
     for(Bullet& b: human->bullets) {
+        if(b.isShot && bot->is_dashing) continue;
         if(b.isShot && aabb(b.hitbox, bot->hitbox)) {
             bot->health -= rand() % 10 + 1;
             b.isShot = false;
@@ -49,6 +51,7 @@ void check_bullet_collision(Player* human, Player* bot) {
         }
     }
     for(Bullet& b: bot->bullets) {
+        if(b.isShot && human->is_dashing) continue;
         if(b.isShot && aabb(b.hitbox, human->hitbox)) {
             human->health -= rand() % 10 + 1;
             b.isShot = false;
