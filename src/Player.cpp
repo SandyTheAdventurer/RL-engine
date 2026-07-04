@@ -15,8 +15,65 @@ Player::~Player() {
 }
 
 void Player::move(float dt, PlayerIntent intent) {
+    if (dash_cooldown_timer > 0)
+        dash_cooldown_timer = std::fmax(0, dash_cooldown_timer - dt);
+    if (fire_cooldown_timer > 0)
+        fire_cooldown_timer = std::fmax(0, fire_cooldown_timer - dt);
+    if (is_reloading) {
+        reload_timer -= dt;
+        if (reload_timer <= 0) {
+            ammo = max_ammo;
+            is_reloading = false;
+        }
+    }
+
+    if (is_dashing) {
+        dash_timer -= dt;
+
+        vx = dash_dir_x * dash_speed;
+        vy = -dash_dir_y * dash_speed;
+        if (dash_dir_x != 0 && dash_dir_y != 0) {
+            vx *= 0.7071f;
+            vy *= 0.7071f;
+        }
+
+        float nx = box.x + vx * dt;
+        if (nx >= 0 && nx + playerw <= screenw)
+            box.x = nx;
+        float ny = box.y + vy * dt;
+        if (ny >= 0 && ny + playerh <= screenh)
+            box.y = ny;
+
+        hitbox.x = box.x + playerw / 2 - hitbox_size;
+        hitbox.y = box.y + playerh / 2 - hitbox_size;
+
+        if (dash_timer <= 0) {
+            is_dashing = false;
+            is_iframe = false;
+        }
+
+        texture = run_texture;
+        for (Bullet& b : bullets) { b.move(dt); }
+        advanceFrame(dt);
+        return;
+    }
+
+    if (intent.reload && !is_reloading && !is_dashing && ammo < max_ammo) {
+        is_reloading = true;
+        reload_timer = reload_time;
+    }
+
     vx = intent.mx * speed;
     vy = intent.my * speed;
+
+    if (intent.dash && !intent.fire && dash_cooldown_timer <= 0) {
+        is_dashing = true;
+        is_iframe = true;
+        dash_timer = dash_blink_duration;
+        dash_cooldown_timer = dash_cooldown;
+        dash_dir_x = static_cast<float>(direction.first);
+        dash_dir_y = static_cast<float>(direction.second);
+    }
 
     if(is_firing){vx = 0; vy = 0;}
 
@@ -42,11 +99,13 @@ void Player::move(float dt, PlayerIntent intent) {
     hitbox.x = box.x + playerw / 2 - hitbox_size;
     hitbox.y = box.y + playerh / 2 - hitbox_size;}
 
-    if (intent.fire) {
+    if (intent.fire && ammo > 0 && fire_cooldown_timer <= 0 && !is_reloading) {
         for(Bullet& b: bullets) {
             if(b.isLoaded) {
                 b.fire(box.x + playerw / 2, box.y + playerh / 2, intent.aim_x, intent.aim_y);
                 is_firing = true;
+                fire_cooldown_timer = fire_rate;
+                ammo--;
                 anim_timer = 0;
                 fire_anim_timer = 0;
                 texture_state = 0;
@@ -64,6 +123,10 @@ void Player::move(float dt, PlayerIntent intent) {
 
                 break;
             }
+        }
+        if (ammo == 0 && !is_reloading) {
+            is_reloading = true;
+            reload_timer = reload_time;
         }
     }
 
@@ -90,6 +153,33 @@ void Player::draw(SDL_Renderer* renderer) {
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
     SDL_RenderFillRect(renderer, &bar_fill);
 
+    float ammo_y = bar_y + bar_h + 3;
+    float dot_w = 8;
+    float dot_h = 6;
+    float dot_gap = 3;
+    float total_w = max_ammo * dot_w + (max_ammo - 1) * dot_gap;
+    float dot_start = box.x + (box.w - total_w) / 2;
+
+    for (int i = 0; i < max_ammo; i++) {
+        SDL_FRect dot = {dot_start + i * (dot_w + dot_gap), ammo_y, dot_w, dot_h};
+        if (i < ammo)
+            SDL_SetRenderDrawColor(renderer, 255, 200, 0, 255);
+        else
+            SDL_SetRenderDrawColor(renderer, 60, 60, 60, 255);
+        SDL_RenderFillRect(renderer, &dot);
+    }
+
+    if (is_reloading) {
+        float reload_y = ammo_y + dot_h + 3;
+        SDL_FRect reload_bg = {box.x, reload_y, box.w, bar_h};
+        SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255);
+        SDL_RenderFillRect(renderer, &reload_bg);
+        float progress = 1.0f - (reload_timer / reload_time);
+        SDL_FRect reload_fill = {box.x, reload_y, box.w * progress, bar_h};
+        SDL_SetRenderDrawColor(renderer, 255, 200, 0, 255);
+        SDL_RenderFillRect(renderer, &reload_fill);
+    }
+
     for(Bullet& b: bullets) {b.draw(renderer);}
 }
 
@@ -113,10 +203,11 @@ void Player::advanceFrame(float dt) {
     }
 }
 
-void Player::load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* shoot, SDL_Texture* bullet)
+void Player::load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* run, SDL_Texture* shoot, SDL_Texture* bullet)
 {
     idle_texture = idle;
     walk_texture = walk;
+    run_texture = run;
     shoot_texture = shoot;
     texture = idle;
     for(Bullet& b: bullets){b.load_textures(bullet);}
@@ -131,6 +222,14 @@ void Player::reset(float x, float y) {
     hitbox = {x + playerw / 2 - hitbox_size,  y + playerh / 2 - hitbox_size,
               hitbox_size * 2, hitbox_size * 2};
     is_firing = false;
+    is_dashing = false;
+    is_iframe = false;
+    is_reloading = false;
+    dash_timer = 0.0f;
+    dash_cooldown_timer = 0.0f;
+    reload_timer = 0.0f;
+    fire_cooldown_timer = 0.0f;
+    ammo = max_ammo;
     health = max_health;
     for(Bullet& b:bullets) {b.isLoaded = true; b.isShot = false;}
 }

@@ -12,7 +12,7 @@ public:
     void step(PlayerIntent& pi1, PlayerIntent& pi2, float dt);
     void render();
     void present();
-    std::array<float, 70> observe(const Player& self, const Player& enemy);
+    std::array<float, 72> observe(const Player& self, const Player& enemy);
     void reset(float p1_x = -1, float p1_y = -1, float p2_x = -1, float p2_y = -1);
     void close();
 
@@ -33,6 +33,7 @@ private:
 
     SDL_Texture* tex_idle = nullptr;
     SDL_Texture* tex_walk = nullptr;
+    SDL_Texture* tex_run = nullptr;
     SDL_Texture* tex_shoot = nullptr;
     SDL_Texture* tex_bullet = nullptr;
 };

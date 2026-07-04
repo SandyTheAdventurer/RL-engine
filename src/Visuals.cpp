@@ -36,10 +36,11 @@ void Visuals::init(Engine& engine, Player& p1, Player& p2) {
 
     SDL_Texture* idle  = IMG_LoadTexture(r, idle_sheet_path);
     SDL_Texture* walk  = IMG_LoadTexture(r, walk_sheet_path);
+    SDL_Texture* run   = IMG_LoadTexture(r, run_sheet_path);
     SDL_Texture* shoot = IMG_LoadTexture(r, shoot_sheet_path);
     SDL_Texture* bullet = IMG_LoadTexture(r, bullet_sheet_path);
-    p1.load_textures(idle, walk, shoot, bullet);
-    p2.load_textures(idle, walk, shoot, bullet);
+    p1.load_textures(idle, walk, run, shoot, bullet);
+    p2.load_textures(idle, walk, run, shoot, bullet);
 }
 
 void Visuals::start_screen(Engine& engine) {

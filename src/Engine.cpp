@@ -26,10 +26,11 @@ Engine::Engine(bool vsync, bool render, Player& p1, Player& p2, int screenw, int
 
         tex_idle   = IMG_LoadTexture(renderer, idle_sheet_path);
         tex_walk   = IMG_LoadTexture(renderer, walk_sheet_path);
+        tex_run    = IMG_LoadTexture(renderer, run_sheet_path);
         tex_shoot  = IMG_LoadTexture(renderer, shoot_sheet_path);
         tex_bullet = IMG_LoadTexture(renderer, bullet_sheet_path);
-        p1.load_textures(tex_idle, tex_walk, tex_shoot, tex_bullet);
-        p2.load_textures(tex_idle, tex_walk, tex_shoot, tex_bullet);
+        p1.load_textures(tex_idle, tex_walk, tex_run, tex_shoot, tex_bullet);
+        p2.load_textures(tex_idle, tex_walk, tex_run, tex_shoot, tex_bullet);
     }
 }
 
@@ -68,8 +69,8 @@ void Engine::render() {
     p2.draw(renderer);
 }
 
-std::array<float, 70> Engine::observe(const Player& self, const Player& enemy) {
-    std::array<float, 70> obs{};
+std::array<float, 72> Engine::observe(const Player& self, const Player& enemy) {
+    std::array<float, 72> obs{};
     size_t i = 0;
 
     obs[i++] = self.health;
@@ -110,6 +111,9 @@ std::array<float, 70> Engine::observe(const Player& self, const Player& enemy) {
         obs[i++] = enemy.bullets[j].isShot ? vel[1] : -1.0f;
     }
 
+    obs[i++] = static_cast<float>(self.ammo);
+    obs[i++] = self.is_reloading ? 1.0f : 0.0f;
+
     return obs;
 }
 
@@ -121,9 +125,10 @@ void Engine::close() {
     if (renderer) {
         SDL_DestroyTexture(tex_bullet);
         SDL_DestroyTexture(tex_shoot);
+        SDL_DestroyTexture(tex_run);
         SDL_DestroyTexture(tex_walk);
         SDL_DestroyTexture(tex_idle);
-        tex_idle = tex_walk = tex_shoot = tex_bullet = nullptr;
+        tex_idle = tex_walk = tex_run = tex_shoot = tex_bullet = nullptr;
 
         SDL_DestroyRenderer(renderer);
         renderer = nullptr;
