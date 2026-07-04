@@ -25,6 +25,10 @@ class Player {
     float dash_dir_x = 0.0f;
     float dash_dir_y = 0.0f;
 
+    float getSpeed() const { return speed; }
+    const std::string& getName() const { return name; }
+    std::pair<int,int> getDirection() const { return direction; }
+
     float speed;
     float vx = 0, vy = 0;
     float health = max_health;
