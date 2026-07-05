@@ -41,19 +41,40 @@ void check_players_collision(Player* human, Player* bot) {
     }
 }
 
+void check_melee_collision(Player* p1, Player* p2) {
+    if (p1->is_attacking && !p1->hit_this_swing && !p1->is_dashing && aabb(p1->melee_hitbox, p2->hitbox) && !p2->is_dashing) {
+        float mult = p1->combo_stage == 0 ? 1.0f : (p1->combo_stage == 1 ? 1.3f : 1.8f);
+        p2->health -= melee_damage * mult;
+        p2->hurt_timer = hurt_flash_duration;
+        p1->hit_this_swing = true;
+    }
+    if (p2->is_attacking && !p2->hit_this_swing && !p2->is_dashing && aabb(p2->melee_hitbox, p1->hitbox) && !p1->is_dashing) {
+        float mult = p2->combo_stage == 0 ? 1.0f : (p2->combo_stage == 1 ? 1.3f : 1.8f);
+        p1->health -= melee_damage * mult;
+        p1->hurt_timer = hurt_flash_duration;
+        p2->hit_this_swing = true;
+    }
+}
+
 void check_bullet_collision(Player* human, Player* bot) {
     for(Bullet& b: human->bullets) {
-        if(b.isShot && bot->is_dashing) continue;
-        if(b.isShot && aabb(b.hitbox, bot->hitbox)) {
+        if(!b.isShot) continue;
+        if(human->is_dashing) continue;
+        if(bot->is_dashing) continue;
+        if(aabb(b.hitbox, bot->hitbox)) {
             bot->health -= rand() % 10 + 1;
+            bot->hurt_timer = hurt_flash_duration;
             b.isShot = false;
             b.isLoaded = true;
         }
     }
     for(Bullet& b: bot->bullets) {
-        if(b.isShot && human->is_dashing) continue;
-        if(b.isShot && aabb(b.hitbox, human->hitbox)) {
+        if(!b.isShot) continue;
+        if(bot->is_dashing) continue;
+        if(human->is_dashing) continue;
+        if(aabb(b.hitbox, human->hitbox)) {
             human->health -= rand() % 10 + 1;
+            human->hurt_timer = hurt_flash_duration;
             b.isShot = false;
             b.isLoaded = true;
         }

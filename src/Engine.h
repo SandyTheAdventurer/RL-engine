@@ -36,4 +36,8 @@ private:
     SDL_Texture* tex_run = nullptr;
     SDL_Texture* tex_shoot = nullptr;
     SDL_Texture* tex_bullet = nullptr;
+    SDL_Texture* tex_melee1 = nullptr;
+    SDL_Texture* tex_melee2 = nullptr;
+    SDL_Texture* tex_melee_spin = nullptr;
+    SDL_Texture* tex_hurt = nullptr;
 };
