@@ -8,8 +8,8 @@
 
 namespace py = pybind11;
 
-py::array_t<float> obs_to_numpy(const std::array<float, 72>& obs) {
-    auto arr = py::array_t<float>(72);
+py::array_t<float> obs_to_numpy(const std::array<float, 74>& obs) {
+    auto arr = py::array_t<float>(74);
     std::copy(obs.begin(), obs.end(), arr.mutable_data());
     return arr;
 }

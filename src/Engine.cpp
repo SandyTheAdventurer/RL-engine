@@ -1,5 +1,6 @@
 #include "Engine.h"
 #include "Collision.h"
+#include <cmath>
 #include <SDL3_image/SDL_image.h>
 #include <stdexcept>
 
@@ -69,50 +70,75 @@ void Engine::render() {
     p2.draw(renderer);
 }
 
-std::array<float, 72> Engine::observe(const Player& self, const Player& enemy) {
-    std::array<float, 72> obs{};
+std::array<float, 74> Engine::observe(const Player& self, const Player& enemy) {
+    std::array<float, 74> obs{};
     size_t i = 0;
 
-    obs[i++] = self.health;
-    obs[i++] = enemy.health;
-    obs[i++] = self.box.x + playerw / 2.0f;
-    obs[i++] = self.box.y + playerh / 2.0f;
-    obs[i++] = enemy.box.x + playerw / 2.0f;
-    obs[i++] = enemy.box.y + playerh / 2.0f;
-    obs[i++] = self.vx;
-    obs[i++] = self.vy;
-    obs[i++] = enemy.vx;
-    obs[i++] = enemy.vy;
+    float self_cx = self.box.x + playerw / 2.0f;
+    float self_cy = self.box.y + playerh / 2.0f;
+    float enemy_cx = enemy.box.x + playerw / 2.0f;
+    float enemy_cy = enemy.box.y + playerh / 2.0f;
+
+    obs[i++] = self.health / max_health;
+    obs[i++] = static_cast<float>(self.ammo) / max_ammo;
+    obs[i++] = self.is_reloading ? 1.0f : 0.0f;
+    obs[i++] = self.is_dashing ? 1.0f : 0.0f;
+    obs[i++] = self_cx / screenw;
+    obs[i++] = self_cy / screenh;
+    obs[i++] = self.vx / playerspeed;
+    obs[i++] = self.vy / playerspeed;
+
+    obs[i++] = enemy.health / max_health;
+    obs[i++] = (enemy_cx - self_cx) / screenw;
+    obs[i++] = (enemy_cy - self_cy) / screenh;
+    obs[i++] = enemy.vx / playerspeed;
+    obs[i++] = enemy.vy / playerspeed;
 
     constexpr int half = max_bullets / 2;
-
-    for (int j = 0; j < half; j++)
-        obs[i++] = self.bullets[j].isShot ? 1.0f : 0.0f;
-    for (int j = 0; j < half; j++)
-        obs[i++] = self.bullets[j].isLoaded ? 1.0f : 0.0f;
+    constexpr float sentinel = -2.0f;
 
     for (int j = 0; j < half; j++) {
-        obs[i++] = self.bullets[j].isShot ? self.bullets[j].hitbox.x : -1.0f;
-        obs[i++] = self.bullets[j].isShot ? self.bullets[j].hitbox.y : -1.0f;
+        const Bullet& b = self.bullets[j];
+        if (b.isShot) {
+            float bx = b.hitbox.x + bulletw / 2.0f;
+            float by = b.hitbox.y + bulleth / 2.0f;
+            auto vel = b.getVel();
+            obs[i++] = 1.0f;
+            obs[i++] = (bx - self_cx) / screenw;
+            obs[i++] = (by - self_cy) / screenh;
+            obs[i++] = vel[0] / bullet_speed;
+            obs[i++] = vel[1] / bullet_speed;
+        } else {
+            obs[i++] = 0.0f;
+            obs[i++] = sentinel;
+            obs[i++] = sentinel;
+            obs[i++] = sentinel;
+            obs[i++] = sentinel;
+        }
     }
     for (int j = 0; j < half; j++) {
-        obs[i++] = enemy.bullets[j].isShot ? enemy.bullets[j].hitbox.x : -1.0f;
-        obs[i++] = enemy.bullets[j].isShot ? enemy.bullets[j].hitbox.y : -1.0f;
+        const Bullet& b = enemy.bullets[j];
+        if (b.isShot) {
+            float bx = b.hitbox.x + bulletw / 2.0f;
+            float by = b.hitbox.y + bulleth / 2.0f;
+            auto vel = b.getVel();
+            obs[i++] = 1.0f;
+            obs[i++] = (bx - self_cx) / screenw;
+            obs[i++] = (by - self_cy) / screenh;
+            obs[i++] = vel[0] / bullet_speed;
+            obs[i++] = vel[1] / bullet_speed;
+        } else {
+            obs[i++] = 0.0f;
+            obs[i++] = sentinel;
+            obs[i++] = sentinel;
+            obs[i++] = sentinel;
+            obs[i++] = sentinel;
+        }
     }
 
-    for (int j = 0; j < half; j++) {
-        auto vel = self.bullets[j].getVel();
-        obs[i++] = self.bullets[j].isShot ? vel[0] : -1.0f;
-        obs[i++] = self.bullets[j].isShot ? vel[1] : -1.0f;
-    }
-    for (int j = 0; j < half; j++) {
-        auto vel = enemy.bullets[j].getVel();
-        obs[i++] = enemy.bullets[j].isShot ? vel[0] : -1.0f;
-        obs[i++] = enemy.bullets[j].isShot ? vel[1] : -1.0f;
-    }
-
-    obs[i++] = static_cast<float>(self.ammo);
-    obs[i++] = self.is_reloading ? 1.0f : 0.0f;
+    float dx = enemy_cx - self_cx;
+    float dy = enemy_cy - self_cy;
+    obs[i] = std::sqrt(dx * dx + dy * dy) / max_dist;
 
     return obs;
 }

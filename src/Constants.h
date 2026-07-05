@@ -16,15 +16,16 @@ inline constexpr int bulletw {30};
 inline constexpr int bulleth {30};
 inline constexpr int max_bullets {12};
 inline constexpr int max_ammo {6};
-inline constexpr float fire_rate {0.3f};
+inline constexpr float fire_rate {0.4f};
 inline constexpr float reload_time {1.5f};
 inline constexpr int font_size {20};
 inline constexpr float bar_h {10.0f};
 inline constexpr float bar_y_offset {15.0f};
+inline constexpr float max_dist {1298.0f};
 
-inline constexpr float dash_distance = 50.0f;
+inline constexpr float dash_distance = 200.0f;
 inline constexpr float dash_blink_duration = 0.2f;
-inline constexpr float dash_cooldown = 0.6f;
+inline constexpr float dash_cooldown = 0.3f;
 inline constexpr float dash_speed = dash_distance / dash_blink_duration;
 
 inline constexpr const char* idle_sheet_path = {"assets/1Knight/Idle_Shadowless.png"};
