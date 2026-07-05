@@ -19,6 +19,15 @@ void Player::move(float dt, PlayerIntent intent) {
         dash_cooldown_timer = std::fmax(0, dash_cooldown_timer - dt);
     if (fire_cooldown_timer > 0)
         fire_cooldown_timer = std::fmax(0, fire_cooldown_timer - dt);
+    if (attack_cooldown_timer > 0)
+        attack_cooldown_timer = std::fmax(0, attack_cooldown_timer - dt);
+    if (hurt_timer > 0)
+        hurt_timer = std::fmax(0.0f, hurt_timer - dt);
+    if (combo_timer > 0) {
+        combo_timer -= dt;
+        if (combo_timer <= 0)
+            combo_stage = 0;
+    }
     if (is_reloading) {
         reload_timer -= dt;
         if (reload_timer <= 0) {
@@ -66,7 +75,7 @@ void Player::move(float dt, PlayerIntent intent) {
     vx = intent.mx * speed;
     vy = intent.my * speed;
 
-    if (intent.dash && !intent.fire && dash_cooldown_timer <= 0) {
+    if (intent.dash && !intent.fire && !is_attacking && dash_cooldown_timer <= 0) {
         is_dashing = true;
         is_iframe = true;
         dash_timer = dash_blink_duration;
@@ -75,9 +84,9 @@ void Player::move(float dt, PlayerIntent intent) {
         dash_dir_y = static_cast<float>(direction.second);
     }
 
-    if(is_firing){vx = 0; vy = 0;}
+    if (is_attacking || is_firing) { vx = 0; vy = 0; }
 
-    if (!is_firing && (intent.mx != 0 || intent.my != 0))
+    if (!is_attacking && !is_firing && (intent.mx != 0 || intent.my != 0))
         direction = {intent.mx, -intent.my};
 
     if (intent.mx != 0 && intent.my != 0){
@@ -95,11 +104,48 @@ void Player::move(float dt, PlayerIntent intent) {
             box.y = ny;
     }
 
-    if(!is_firing){
-    hitbox.x = box.x + playerw / 2 - hitbox_size;
-    hitbox.y = box.y + playerh / 2 - hitbox_size;}
+    if (!is_attacking && !is_firing) {
+        hitbox.x = box.x + playerw / 2 - hitbox_size;
+        hitbox.y = box.y + playerh / 2 - hitbox_size;
+    }
 
-    if (intent.fire && ammo > 0 && fire_cooldown_timer <= 0 && !is_reloading) {
+    if (intent.attack && !is_attacking && !is_dashing && attack_cooldown_timer <= 0) {
+        is_attacking = true;
+        hit_this_swing = false;
+        texture_state = 0;
+        attack_anim_timer = 0;
+        if (combo_timer > 0)
+            combo_stage = std::min(combo_stage + 1, max_combo_stage);
+        else
+            combo_stage = 0;
+        combo_timer = 0;
+
+        float cx = box.x + playerw / 2.0f;
+        float cy = box.y + playerh / 2.0f;
+        float aim_dx = intent.aim_x - cx;
+        float aim_dy = cy - intent.aim_y;
+        float angle = std::atan2(aim_dy, aim_dx);
+        float a = std::fmod(angle + 2 * static_cast<float>(M_PI), 2 * static_cast<float>(M_PI));
+        int sector = static_cast<int>(std::floor((a + static_cast<float>(M_PI) / 8.0f) / (static_cast<float>(M_PI) / 4.0f))) % 8;
+        static constexpr std::pair<int,int> mdirs[8] = {
+            {1, 0}, {1, 1}, {0, 1}, {-1, 1},
+            {-1, 0}, {-1, -1}, {0, -1}, {1, -1}
+        };
+        int dx = mdirs[sector].first;
+        int dy = mdirs[sector].second;
+        if (dx == 1)
+            melee_hitbox = {box.x + playerw, box.y, melee_range, playerh};
+        else if (dx == -1)
+            melee_hitbox = {box.x - melee_range, box.y, melee_range, playerh};
+        else if (dy == 1)
+            melee_hitbox = {box.x, box.y + playerh, playerw, melee_range};
+        else
+            melee_hitbox = {box.x, box.y - melee_range, playerw, melee_range};
+
+        direction = mdirs[sector];
+    }
+
+    if (intent.fire && ammo > 0 && fire_cooldown_timer <= 0 && !is_reloading && !is_attacking) {
         for(Bullet& b: bullets) {
             if(b.isLoaded) {
                 b.fire(box.x + playerw / 2, box.y + playerh / 2, intent.aim_x, intent.aim_y);
@@ -109,6 +155,8 @@ void Player::move(float dt, PlayerIntent intent) {
                 anim_timer = 0;
                 fire_anim_timer = 0;
                 texture_state = 0;
+                combo_stage = 0;
+                combo_timer = 0;
 
                 float aim_dx = intent.aim_x - (box.x + playerw / 2);
                 float aim_dy = (box.y + playerh / 2) - intent.aim_y;
@@ -130,7 +178,13 @@ void Player::move(float dt, PlayerIntent intent) {
         }
     }
 
-    if (is_firing)
+    if (is_attacking) {
+        switch (combo_stage) {
+            case 0: texture = melee1_texture; break;
+            case 1: texture = melee2_texture; break;
+            default: texture = melee_spin_texture; break;
+        }
+    } else if (is_firing)
         texture = shoot_texture;
     else
         texture = (intent.mx == 0 && intent.my == 0) ? idle_texture : walk_texture;
@@ -140,8 +194,9 @@ void Player::move(float dt, PlayerIntent intent) {
 }
 
 void Player::draw(SDL_Renderer* renderer) {
+    SDL_Texture* draw_tex = (hurt_timer > 0) ? hurt_texture : texture;
     SDL_FRect src = get_texture_box();
-    SDL_RenderTexture(renderer, texture, &src, &box);
+    SDL_RenderTexture(renderer, draw_tex, &src, &box);
 
     float bar_y = box.y - bar_y_offset;
     SDL_FRect bar_bg = {box.x, bar_y, box.w, bar_h};
@@ -184,7 +239,20 @@ void Player::draw(SDL_Renderer* renderer) {
 }
 
 void Player::advanceFrame(float dt) {
-    if (is_firing) {
+    if (is_attacking) {
+        attack_anim_timer += dt;
+        if (attack_anim_timer >= attack_spritechange) {
+            attack_anim_timer -= attack_spritechange;
+            texture_state++;
+            if (texture_state >= 15) {
+                is_attacking = false;
+                texture_state = 0;
+                attack_cooldown_timer = melee_cooldown;
+                combo_timer = combo_window;
+                melee_hitbox = {0, 0, 0, 0};
+            }
+        }
+    } else if (is_firing) {
         fire_anim_timer += dt;
         if (fire_anim_timer >= fire_spritechange) {
             fire_anim_timer -= fire_spritechange;
@@ -203,12 +271,16 @@ void Player::advanceFrame(float dt) {
     }
 }
 
-void Player::load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* run, SDL_Texture* shoot, SDL_Texture* bullet)
+void Player::load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* run, SDL_Texture* shoot, SDL_Texture* bullet, SDL_Texture* melee1, SDL_Texture* melee2, SDL_Texture* melee_spin, SDL_Texture* hurt)
 {
     idle_texture = idle;
     walk_texture = walk;
     run_texture = run;
     shoot_texture = shoot;
+    melee1_texture = melee1;
+    melee2_texture = melee2;
+    melee_spin_texture = melee_spin;
+    hurt_texture = hurt;
     texture = idle;
     for(Bullet& b: bullets){b.load_textures(bullet);}
 }
@@ -225,10 +297,17 @@ void Player::reset(float x, float y) {
     is_dashing = false;
     is_iframe = false;
     is_reloading = false;
+    is_attacking = false;
+    hit_this_swing = false;
+    combo_stage = 0;
     dash_timer = 0.0f;
     dash_cooldown_timer = 0.0f;
     reload_timer = 0.0f;
     fire_cooldown_timer = 0.0f;
+    attack_cooldown_timer = 0.0f;
+    combo_timer = 0.0f;
+    hurt_timer = 0.0f;
+    melee_hitbox = {0, 0, 0, 0};
     ammo = max_ammo;
     health = max_health;
     for(Bullet& b:bullets) {b.isLoaded = true; b.isShot = false;}

@@ -25,13 +25,17 @@ Engine::Engine(bool vsync, bool render, Player& p1, Player& p2, int screenw, int
         }
         SDL_SetRenderVSync(renderer, vsync ? 1 : 0);
 
-        tex_idle   = IMG_LoadTexture(renderer, idle_sheet_path);
-        tex_walk   = IMG_LoadTexture(renderer, walk_sheet_path);
-        tex_run    = IMG_LoadTexture(renderer, run_sheet_path);
-        tex_shoot  = IMG_LoadTexture(renderer, shoot_sheet_path);
-        tex_bullet = IMG_LoadTexture(renderer, bullet_sheet_path);
-        p1.load_textures(tex_idle, tex_walk, tex_run, tex_shoot, tex_bullet);
-        p2.load_textures(tex_idle, tex_walk, tex_run, tex_shoot, tex_bullet);
+        tex_idle      = IMG_LoadTexture(renderer, idle_sheet_path);
+        tex_walk      = IMG_LoadTexture(renderer, walk_sheet_path);
+        tex_run       = IMG_LoadTexture(renderer, run_sheet_path);
+        tex_shoot     = IMG_LoadTexture(renderer, shoot_sheet_path);
+        tex_bullet    = IMG_LoadTexture(renderer, bullet_sheet_path);
+        tex_melee1    = IMG_LoadTexture(renderer, melee1_sheet_path);
+        tex_melee2    = IMG_LoadTexture(renderer, melee2_sheet_path);
+        tex_melee_spin = IMG_LoadTexture(renderer, melee_spin_sheet_path);
+        tex_hurt = IMG_LoadTexture(renderer, hurt_sheet_path);
+        p1.load_textures(tex_idle, tex_walk, tex_run, tex_shoot, tex_bullet, tex_melee1, tex_melee2, tex_melee_spin, tex_hurt);
+        p2.load_textures(tex_idle, tex_walk, tex_run, tex_shoot, tex_bullet, tex_melee1, tex_melee2, tex_melee_spin, tex_hurt);
     }
 }
 
@@ -54,6 +58,7 @@ void Engine::step(PlayerIntent& pi1, PlayerIntent& pi2, float dt) {
     p2.move(dt, pi2);
 
     check_players_collision(&p1, &p2);
+    check_melee_collision(&p1, &p2);
     check_bullet_collision(&p1, &p2);
 
     if (p1.health <= 0 || p2.health <= 0) {
@@ -154,7 +159,12 @@ void Engine::close() {
         SDL_DestroyTexture(tex_run);
         SDL_DestroyTexture(tex_walk);
         SDL_DestroyTexture(tex_idle);
+        SDL_DestroyTexture(tex_melee1);
+        SDL_DestroyTexture(tex_melee2);
+        SDL_DestroyTexture(tex_melee_spin);
+        SDL_DestroyTexture(tex_hurt);
         tex_idle = tex_walk = tex_run = tex_shoot = tex_bullet = nullptr;
+        tex_melee1 = tex_melee2 = tex_melee_spin = tex_hurt = nullptr;
 
         SDL_DestroyRenderer(renderer);
         renderer = nullptr;

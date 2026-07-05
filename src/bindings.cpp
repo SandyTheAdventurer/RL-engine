@@ -23,18 +23,20 @@ PYBIND11_MODULE(Game, m) {
         .def_readonly("mouse_y", &FrameInput::mouse_y);
 
     py::class_<PlayerIntent>(m, "PlayerIntent")
-        .def(py::init<int, int, bool, bool, bool, float, float>(),
+        .def(py::init<int, int, bool, bool, bool, float, float, bool>(),
              py::arg("mx") = 0, py::arg("my") = 0,
              py::arg("fire") = false, py::arg("dash") = false,
              py::arg("reload") = false,
-             py::arg("aim_x") = 0.0f, py::arg("aim_y") = 0.0f)
+             py::arg("aim_x") = 0.0f, py::arg("aim_y") = 0.0f,
+             py::arg("attack") = false)
         .def_readwrite("mx", &PlayerIntent::mx)
         .def_readwrite("my", &PlayerIntent::my)
         .def_readwrite("fire", &PlayerIntent::fire)
         .def_readwrite("dash", &PlayerIntent::dash)
         .def_readwrite("reload", &PlayerIntent::reload)
         .def_readwrite("aim_x", &PlayerIntent::aim_x)
-        .def_readwrite("aim_y", &PlayerIntent::aim_y);
+        .def_readwrite("aim_y", &PlayerIntent::aim_y)
+        .def_readwrite("attack", &PlayerIntent::attack);
 
     py::class_<Player>(m, "Player")
         .def(py::init<float, float, float, std::string>(),

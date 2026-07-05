@@ -5,7 +5,8 @@ PlayerIntent getHumanIntent(const FrameInput& input) {
     PlayerIntent intent;
     intent.mx = (keys[SDL_SCANCODE_D] ? 1 : 0) - (keys[SDL_SCANCODE_A] ? 1 : 0);
     intent.my = (keys[SDL_SCANCODE_S] ? 1 : 0) - (keys[SDL_SCANCODE_W] ? 1 : 0);
-    intent.fire = input.mouse_left_clicked;
+    intent.attack = input.mouse_left_clicked;
+    intent.fire = input.mouse_right_clicked;
     intent.dash = (keys[SDL_SCANCODE_LSHIFT]);
     intent.reload = (keys[SDL_SCANCODE_R]);
     intent.aim_x = input.mouse_x;
