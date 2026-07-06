@@ -1,12 +1,15 @@
 #include "Engine.h"
 #include "Collision.h"
 #include <cmath>
+#include <cstdlib>
+#include <ctime>
 #include <SDL3_image/SDL_image.h>
 #include <stdexcept>
 
 Engine::Engine(bool vsync, bool render, Player& p1, Player& p2, int screenw, int screenh)
     : p1(p1), p2(p2), screenw(screenw), screenh(screenh), vsync(vsync), is_render(render)
 {
+    std::srand(static_cast<unsigned>(std::time(nullptr)));
     if (is_render) {
         if (!SDL_Init(SDL_INIT_VIDEO)) {
             throw std::runtime_error("Failed to initialize SDL video");
@@ -57,8 +60,8 @@ void Engine::step(PlayerIntent& pi1, PlayerIntent& pi2, float dt) {
     p1.move(dt, pi1);
     p2.move(dt, pi2);
 
-    check_players_collision(&p1, &p2);
     check_melee_collision(&p1, &p2);
+    check_players_collision(&p1, &p2);
     check_bullet_collision(&p1, &p2);
 
     if (p1.health <= 0 || p2.health <= 0) {
@@ -75,8 +78,8 @@ void Engine::render() {
     p2.draw(renderer);
 }
 
-std::array<float, 74> Engine::observe(const Player& self, const Player& enemy) {
-    std::array<float, 74> obs{};
+std::array<float, 76> Engine::observe(const Player& self, const Player& enemy) {
+    std::array<float, 76> obs{};
     size_t i = 0;
 
     float self_cx = self.box.x + playerw / 2.0f;
@@ -143,7 +146,10 @@ std::array<float, 74> Engine::observe(const Player& self, const Player& enemy) {
 
     float dx = enemy_cx - self_cx;
     float dy = enemy_cy - self_cy;
-    obs[i] = std::sqrt(dx * dx + dy * dy) / max_dist;
+    obs[73] = std::sqrt(dx * dx + dy * dy) / max_dist;
+
+    obs[74] = self.is_attacking ? 1.0f : 0.0f;
+    obs[75] = static_cast<float>(self.combo_stage) / max_combo_stage;
 
     return obs;
 }

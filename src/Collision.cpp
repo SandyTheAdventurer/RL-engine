@@ -1,6 +1,7 @@
 #include "Collision.h"
 #include "Player.h"
 #include "Constants.h"
+#include <cmath>
 #include <cstdlib>
 
 bool aabb(const SDL_FRect& a, const SDL_FRect& b) {
@@ -41,18 +42,48 @@ void check_players_collision(Player* human, Player* bot) {
     }
 }
 
+static bool point_in_sector(float px, float py, float cx, float cy, float angle, float half_arc, float outer_r) {
+    float dx = px - cx;
+    float dy = py - cy;
+    float dist = std::sqrt(dx*dx + dy*dy);
+    if (dist < 0 || dist > outer_r) return false;
+    float a = std::atan2(dy, dx);
+    float diff = a - angle;
+    while (diff > static_cast<float>(M_PI)) diff -= 2.0f * static_cast<float>(M_PI);
+    while (diff < -static_cast<float>(M_PI)) diff += 2.0f * static_cast<float>(M_PI);
+    return std::abs(diff) <= half_arc;
+}
+
 void check_melee_collision(Player* p1, Player* p2) {
-    if (p1->is_attacking && !p1->hit_this_swing && !p1->is_dashing && aabb(p1->melee_hitbox, p2->hitbox) && !p2->is_dashing) {
-        float mult = p1->combo_stage == 0 ? 1.0f : (p1->combo_stage == 1 ? 1.3f : 1.8f);
-        p2->health -= melee_damage * mult;
-        p2->hurt_timer = hurt_flash_duration;
-        p1->hit_this_swing = true;
+    if (p1->is_attacking && !p1->hit_this_swing && !p1->is_dashing && !p2->is_dashing) {
+        float cx = p1->box.x + playerw / 2.0f;
+        float cy = p1->box.y + playerh / 2.0f;
+        SDL_FRect& hb = p2->hitbox;
+        bool hit = point_in_sector(hb.x, hb.y, cx, cy, p1->melee_angle, melee_half_arc, melee_outer_r) ||
+                   point_in_sector(hb.x + hb.w, hb.y, cx, cy, p1->melee_angle, melee_half_arc, melee_outer_r) ||
+                   point_in_sector(hb.x, hb.y + hb.h, cx, cy, p1->melee_angle, melee_half_arc, melee_outer_r) ||
+                   point_in_sector(hb.x + hb.w, hb.y + hb.h, cx, cy, p1->melee_angle, melee_half_arc, melee_outer_r);
+        if (hit) {
+            float mult = p1->combo_stage == 0 ? 1.0f : (p1->combo_stage == 1 ? 1.3f : 1.8f);
+            p2->health -= melee_damage * mult;
+            p2->hurt_timer = hurt_flash_duration;
+            p1->hit_this_swing = true;
+        }
     }
-    if (p2->is_attacking && !p2->hit_this_swing && !p2->is_dashing && aabb(p2->melee_hitbox, p1->hitbox) && !p1->is_dashing) {
-        float mult = p2->combo_stage == 0 ? 1.0f : (p2->combo_stage == 1 ? 1.3f : 1.8f);
-        p1->health -= melee_damage * mult;
-        p1->hurt_timer = hurt_flash_duration;
-        p2->hit_this_swing = true;
+    if (p2->is_attacking && !p2->hit_this_swing && !p2->is_dashing && !p1->is_dashing) {
+        float cx = p2->box.x + playerw / 2.0f;
+        float cy = p2->box.y + playerh / 2.0f;
+        SDL_FRect& hb = p1->hitbox;
+        bool hit = point_in_sector(hb.x, hb.y, cx, cy, p2->melee_angle, melee_half_arc, melee_outer_r) ||
+                   point_in_sector(hb.x + hb.w, hb.y, cx, cy, p2->melee_angle, melee_half_arc, melee_outer_r) ||
+                   point_in_sector(hb.x, hb.y + hb.h, cx, cy, p2->melee_angle, melee_half_arc, melee_outer_r) ||
+                   point_in_sector(hb.x + hb.w, hb.y + hb.h, cx, cy, p2->melee_angle, melee_half_arc, melee_outer_r);
+        if (hit) {
+            float mult = p2->combo_stage == 0 ? 1.0f : (p2->combo_stage == 1 ? 1.3f : 1.8f);
+            p1->health -= melee_damage * mult;
+            p1->hurt_timer = hurt_flash_duration;
+            p2->hit_this_swing = true;
+        }
     }
 }
 

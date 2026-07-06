@@ -46,6 +46,7 @@ class Player {
     float attack_cooldown_timer = 0.0f;
     float combo_timer = 0.0f;
     float hurt_timer = 0.0f;
+    float melee_angle = 0.0f;
 
     private:
     void advanceFrame(float dt);

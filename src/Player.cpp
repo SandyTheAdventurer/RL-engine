@@ -1,6 +1,6 @@
 #include "Player.h"
 #include "Constants.h"
-#include <math.h>
+#include <cmath>
 
 Player::Player(float x, float y, float speed, std::string name)
     : speed(speed),
@@ -23,6 +23,7 @@ void Player::move(float dt, PlayerIntent intent) {
         attack_cooldown_timer = std::fmax(0, attack_cooldown_timer - dt);
     if (hurt_timer > 0)
         hurt_timer = std::fmax(0.0f, hurt_timer - dt);
+    bool combo_active = combo_timer > 0;
     if (combo_timer > 0) {
         combo_timer -= dt;
         if (combo_timer <= 0)
@@ -109,41 +110,32 @@ void Player::move(float dt, PlayerIntent intent) {
         hitbox.y = box.y + playerh / 2 - hitbox_size;
     }
 
-    if (intent.attack && !is_attacking && !is_dashing && attack_cooldown_timer <= 0) {
-        is_attacking = true;
-        hit_this_swing = false;
-        texture_state = 0;
-        attack_anim_timer = 0;
-        if (combo_timer > 0)
-            combo_stage = std::min(combo_stage + 1, max_combo_stage);
-        else
-            combo_stage = 0;
-        combo_timer = 0;
+        if (intent.attack && !is_attacking && !is_dashing && attack_cooldown_timer <= 0) {
+            is_attacking = true;
+            hit_this_swing = false;
+            texture_state = 0;
+            attack_anim_timer = 0;
+            if (combo_active)
+                combo_stage = std::min(combo_stage + 1, max_combo_stage);
+            else
+                combo_stage = 0;
+            combo_timer = 0;
 
-        float cx = box.x + playerw / 2.0f;
-        float cy = box.y + playerh / 2.0f;
-        float aim_dx = intent.aim_x - cx;
-        float aim_dy = cy - intent.aim_y;
-        float angle = std::atan2(aim_dy, aim_dx);
-        float a = std::fmod(angle + 2 * static_cast<float>(M_PI), 2 * static_cast<float>(M_PI));
-        int sector = static_cast<int>(std::floor((a + static_cast<float>(M_PI) / 8.0f) / (static_cast<float>(M_PI) / 4.0f))) % 8;
-        static constexpr std::pair<int,int> mdirs[8] = {
-            {1, 0}, {1, 1}, {0, 1}, {-1, 1},
-            {-1, 0}, {-1, -1}, {0, -1}, {1, -1}
-        };
-        int dx = mdirs[sector].first;
-        int dy = mdirs[sector].second;
-        if (dx == 1)
-            melee_hitbox = {box.x + playerw, box.y, melee_range, playerh};
-        else if (dx == -1)
-            melee_hitbox = {box.x - melee_range, box.y, melee_range, playerh};
-        else if (dy == 1)
-            melee_hitbox = {box.x, box.y + playerh, playerw, melee_range};
-        else
-            melee_hitbox = {box.x, box.y - melee_range, playerw, melee_range};
+            float cx = box.x + playerw / 2.0f;
+            float cy = box.y + playerh / 2.0f;
+            float aim_dx = intent.aim_x - cx;
+            float aim_dy = intent.aim_y - cy;
+            float melee_angle = std::atan2(aim_dy, aim_dx);
+            float a = std::fmod(melee_angle + 2.0f * static_cast<float>(M_PI), 2.0f * static_cast<float>(M_PI)) + 1;
 
-        direction = mdirs[sector];
-    }
+            const float TWO_PI = 2.0f * static_cast<float>(M_PI);
+            const float SECTOR_WIDTH = TWO_PI / 8.0f;
+
+            float shifted_a = a + (SECTOR_WIDTH / 2.0f);
+            int sector = static_cast<int>(shifted_a / SECTOR_WIDTH) % 8;
+            static constexpr std::pair<int,int> mdirs[8] = {{ 1, 0},{ 1,-1},{ 0,-1},{-1,-1},{-1, 0},{-1, 1},{ 0, 1},{ 1, 1}};
+            direction = mdirs[sector];
+        }
 
     if (intent.fire && ammo > 0 && fire_cooldown_timer <= 0 && !is_reloading && !is_attacking) {
         for(Bullet& b: bullets) {
@@ -159,13 +151,13 @@ void Player::move(float dt, PlayerIntent intent) {
                 combo_timer = 0;
 
                 float aim_dx = intent.aim_x - (box.x + playerw / 2);
-                float aim_dy = (box.y + playerh / 2) - intent.aim_y;
+                float aim_dy = intent.aim_y - (box.y + playerh / 2);
                 float angle = std::atan2(aim_dy, aim_dx);
                 float a = std::fmod(angle + 2 * M_PI, 2 * M_PI);
                 int sector = static_cast<int>(std::floor((a + M_PI / 8.0) / (M_PI / 4.0))) % 8;
                 static constexpr std::pair<int,int> dirs[8] = {
-                    {1, 0}, {1, 1}, {0, 1}, {-1, 1},
-                    {-1, 0}, {-1, -1}, {0, -1}, {1, -1}
+                    {1, 0}, {1, -1}, {0, -1}, {-1, -1},
+                    {-1, 0}, {-1, 1}, {0, 1}, {1, 1}
                 };
                 direction = dirs[sector];
 
@@ -236,6 +228,15 @@ void Player::draw(SDL_Renderer* renderer) {
     }
 
     for(Bullet& b: bullets) {b.draw(renderer);}
+
+    // Debug: draw player hitbox
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 80);
+    SDL_RenderFillRect(renderer, &hitbox);
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 200);
+    SDL_RenderRect(renderer, &hitbox);
+
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 }
 
 void Player::advanceFrame(float dt) {
@@ -249,7 +250,6 @@ void Player::advanceFrame(float dt) {
                 texture_state = 0;
                 attack_cooldown_timer = melee_cooldown;
                 combo_timer = combo_window;
-                melee_hitbox = {0, 0, 0, 0};
             }
         }
     } else if (is_firing) {
