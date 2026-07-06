@@ -34,17 +34,7 @@ void Visuals::init(Engine& engine, Player& p1, Player& p2) {
     if (train_text) SDL_GetTextureSize(train_text, &train_w, &train_h);
     if (end_text)   SDL_GetTextureSize(end_text, &end_w, &end_h);
 
-    SDL_Texture* idle  = IMG_LoadTexture(r, idle_sheet_path);
-    SDL_Texture* walk  = IMG_LoadTexture(r, walk_sheet_path);
-    SDL_Texture* run   = IMG_LoadTexture(r, run_sheet_path);
-    SDL_Texture* shoot = IMG_LoadTexture(r, shoot_sheet_path);
-    SDL_Texture* bullet = IMG_LoadTexture(r, bullet_sheet_path);
-    SDL_Texture* melee1 = IMG_LoadTexture(r, melee1_sheet_path);
-    SDL_Texture* melee2 = IMG_LoadTexture(r, melee2_sheet_path);
-    SDL_Texture* melee_spin = IMG_LoadTexture(r, melee_spin_sheet_path);
-    SDL_Texture* hurt = IMG_LoadTexture(r, hurt_sheet_path);
-    p1.load_textures(idle, walk, run, shoot, bullet, melee1, melee2, melee_spin, hurt);
-    p2.load_textures(idle, walk, run, shoot, bullet, melee1, melee2, melee_spin, hurt);
+
 }
 
 void Visuals::start_screen(Engine& engine) {

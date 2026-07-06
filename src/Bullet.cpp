@@ -8,6 +8,7 @@ void Bullet::fire(float x, float y, float tx, float ty) {
     float dx = tx - x;
     float dy = ty - y;
     float dist = std::sqrt(dx*dx + dy*dy);
+    if (dist < 1.0f) { dist = 1.0f; }
     vx = dx / dist * bullet_speed;
     vy = dy / dist * bullet_speed;
     angle = std::atan2(dy, dx) * 180 / M_PI;
