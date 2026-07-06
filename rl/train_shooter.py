@@ -5,7 +5,7 @@ from rl.shooter_env import ShooterEnv
 
 def make_shooter_env(full_env_name, cfg=None, env_config=None, render_mode=None):
     frame_skip = getattr(cfg, "frame_skip", 4)
-    opponent = getattr(cfg, "opponent", "masterpiece")
+    opponent = getattr(cfg, "opponent", "medium")
 
     if opponent == "none":
         opponent = None
@@ -26,8 +26,8 @@ def add_shooter_env_args(parser):
 
     parser.add_argument(
         "--opponent",
-        default="masterpiece",
-        choices=["easy", "static", "hardened", "masterpiece", "none", "human"],
+        default="medium",
+        choices=["easy", "medium", "hard", "expert", "none", "human"],
         help="Scripted bot (from bots.py) to train against; 'none' = idle opponent",
     )
 
