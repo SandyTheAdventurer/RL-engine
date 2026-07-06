@@ -1,7 +1,7 @@
 #pragma once
 #include <map>
 
-inline constexpr int screenw {1080};
+inline constexpr int screenw {1280};
 inline constexpr int screenh {720};
 inline constexpr int playerw {150};
 inline constexpr int playerh {150};
@@ -23,13 +23,15 @@ inline constexpr float reload_time {1.5f};
 inline constexpr int font_size {20};
 inline constexpr float bar_h {10.0f};
 inline constexpr float bar_y_offset {15.0f};
-inline constexpr float max_dist {1298.0f};
+inline constexpr float max_dist {1468.6f};
 
 inline constexpr float melee_damage = 12.0f;
-inline constexpr float melee_range = 65.0f;
+inline constexpr float melee_range = 10.0f;
 inline constexpr float melee_cooldown = 0.2f;
-inline constexpr float combo_window = 0.4f;
+inline constexpr float combo_window = 0.3f;
 inline constexpr int max_combo_stage = 2;
+inline constexpr float melee_half_arc = 0.7854f;
+inline constexpr float melee_outer_r = playerw / 2.0f + melee_range;
 
 inline constexpr float dash_distance = 100.0f;
 inline constexpr float dash_blink_duration = 0.2f;
