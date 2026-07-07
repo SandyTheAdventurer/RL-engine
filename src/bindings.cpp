@@ -5,11 +5,12 @@
 #include "Visuals.h"
 #include "Events.h"
 #include "Input.h"
+#include "Equipment.h"
 
 namespace py = pybind11;
 
-py::array_t<float> obs_to_numpy(const std::array<float, 76>& obs) {
-    auto arr = py::array_t<float>(76);
+py::array_t<float> obs_to_numpy(const std::array<float, obs_dim>& obs) {
+    auto arr = py::array_t<float>(obs_dim);
     std::copy(obs.begin(), obs.end(), arr.mutable_data());
     return arr;
 }
@@ -38,6 +39,21 @@ PYBIND11_MODULE(Game, m) {
         .def_readwrite("aim_y", &PlayerIntent::aim_y)
         .def_readwrite("attack", &PlayerIntent::attack);
 
+    py::enum_<WeaponType>(m, "WeaponType")
+        .value("Katana", WeaponType::Katana)
+        .value("ShortSword", WeaponType::ShortSword)
+        .value("Daggers", WeaponType::Daggers)
+        .value("GreatSword", WeaponType::GreatSword)
+        .value("Shield", WeaponType::Shield)
+        .value("Staff", WeaponType::Staff);
+
+    py::class_<PlayerStats>(m, "PlayerStats")
+        .def_readonly("strength", &PlayerStats::strength)
+        .def_readonly("vitality", &PlayerStats::vitality)
+        .def_readonly("agility", &PlayerStats::agility)
+        .def_readonly("reasoning", &PlayerStats::reasoning)
+        .def_readonly("endurance", &PlayerStats::endurance);
+
     py::class_<Player>(m, "Player")
         .def(py::init<float, float, float, std::string>(),
              py::arg("x"), py::arg("y"), py::arg("speed"), py::arg("name"))
@@ -47,7 +63,10 @@ PYBIND11_MODULE(Game, m) {
         .def_readonly("ammo", &Player::ammo)
         .def_readonly("is_reloading", &Player::is_reloading)
         .def_readonly("vx", &Player::vx)
-        .def_readonly("vy", &Player::vy);
+        .def_readonly("vy", &Player::vy)
+        .def_readonly("stats", &Player::stats)
+        .def_property_readonly("weapon", [](Player& p) { return p.equipment.weapon; })
+        .def_readonly("equip_load_ratio", &Player::equip_load_ratio);
 
     py::class_<Engine>(m, "Engine")
         .def(py::init<bool, bool, Player&, Player&, int, int>(),

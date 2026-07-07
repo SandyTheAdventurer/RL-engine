@@ -1,6 +1,7 @@
 #include "Collision.h"
 #include "Player.h"
 #include "Constants.h"
+#include "Equipment.h"
 #include <cmath>
 #include <cstdlib>
 
@@ -64,8 +65,13 @@ void check_melee_collision(Player* p1, Player* p2) {
                    point_in_sector(hb.x, hb.y + hb.h, cx, cy, p1->melee_angle, melee_half_arc, melee_outer_r) ||
                    point_in_sector(hb.x + hb.w, hb.y + hb.h, cx, cy, p1->melee_angle, melee_half_arc, melee_outer_r);
         if (hit) {
-            float mult = p1->combo_stage == 0 ? 1.0f : (p1->combo_stage == 1 ? 1.3f : 1.8f);
-            p2->health -= melee_damage * mult;
+            float mult = melee_combo_multipliers[p1->combo_stage];
+            const WeaponProfile& wp = get_weapon_profile(p1->equipment.weapon);
+            float wpn_bonus = calc_weapon_damage_bonus(wp, p1->stats);
+            float negation = calc_armor_damage_reduction(p2->equipment) + calc_damage_negation(p2->stats);
+            negation = std::min(0.8f, std::max(-0.5f, negation));
+            float dmg = melee_damage * mult * wpn_bonus * (1.0f - negation);
+            p2->health -= dmg;
             p2->hurt_timer = hurt_flash_duration;
             p1->hit_this_swing = true;
         }
@@ -79,8 +85,13 @@ void check_melee_collision(Player* p1, Player* p2) {
                    point_in_sector(hb.x, hb.y + hb.h, cx, cy, p2->melee_angle, melee_half_arc, melee_outer_r) ||
                    point_in_sector(hb.x + hb.w, hb.y + hb.h, cx, cy, p2->melee_angle, melee_half_arc, melee_outer_r);
         if (hit) {
-            float mult = p2->combo_stage == 0 ? 1.0f : (p2->combo_stage == 1 ? 1.3f : 1.8f);
-            p1->health -= melee_damage * mult;
+            float mult = melee_combo_multipliers[p2->combo_stage];
+            const WeaponProfile& wp = get_weapon_profile(p2->equipment.weapon);
+            float wpn_bonus = calc_weapon_damage_bonus(wp, p2->stats);
+            float negation = calc_armor_damage_reduction(p1->equipment) + calc_damage_negation(p1->stats);
+            negation = std::min(0.8f, std::max(-0.5f, negation));
+            float dmg = melee_damage * mult * wpn_bonus * (1.0f - negation);
+            p1->health -= dmg;
             p1->hurt_timer = hurt_flash_duration;
             p2->hit_this_swing = true;
         }
