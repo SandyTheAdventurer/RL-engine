@@ -289,15 +289,6 @@ void Player::draw(SDL_Renderer* renderer) {
     }
 
     for(Bullet& b: bullets) {b.draw(renderer);}
-
-    // Debug: draw player hitbox
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 80);
-    SDL_RenderFillRect(renderer, &hitbox);
-    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 200);
-    SDL_RenderRect(renderer, &hitbox);
-
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 }
 
 void Player::advanceFrame(float dt) {

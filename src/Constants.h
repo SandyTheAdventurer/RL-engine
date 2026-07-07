@@ -4,8 +4,8 @@
 
 inline constexpr int screenw {1280};
 inline constexpr int screenh {720};
-inline constexpr int playerw {75};
-inline constexpr int playerh {75};
+inline constexpr int playerw {150};
+inline constexpr int playerh {150};
 inline constexpr float playerspeed {200.0f};
 inline constexpr int max_health = {100};
 inline constexpr float spritechange {1.0f / 30};

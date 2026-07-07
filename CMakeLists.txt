@@ -37,3 +37,10 @@ target_link_libraries(rlengine PUBLIC
 
 pybind11_add_module(Game src/bindings.cpp)
 target_link_libraries(Game PRIVATE rlengine)
+
+add_custom_target(generate_placeholder_assets
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/generate_placeholder_textures.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Generating ASCII-art placeholder textures into assets/"
+    VERBATIM
+)
