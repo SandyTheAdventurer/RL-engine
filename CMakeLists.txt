@@ -24,6 +24,9 @@ add_library(rlengine STATIC
     src/Input.cpp
     src/Events.cpp
     src/Structures.cpp
+    src/Stats.cpp
+    src/Stamina.cpp
+    src/Equipment.cpp
 )
 target_include_directories(rlengine PUBLIC src)
 target_link_libraries(rlengine PUBLIC 

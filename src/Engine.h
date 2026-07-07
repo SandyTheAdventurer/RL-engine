@@ -12,7 +12,7 @@ public:
     void step(PlayerIntent& pi1, PlayerIntent& pi2, float dt);
     void render();
     void present();
-    std::array<float, 76> observe(const Player& self, const Player& enemy);
+    std::array<float, obs_dim> observe(const Player& self, const Player& enemy);
     void reset(float p1_x = -1, float p1_y = -1, float p2_x = -1, float p2_y = -1);
     void close();
 
@@ -31,13 +31,15 @@ private:
     bool is_render;
     bool done = false;
 
-    SDL_Texture* tex_idle = nullptr;
-    SDL_Texture* tex_walk = nullptr;
-    SDL_Texture* tex_run = nullptr;
-    SDL_Texture* tex_shoot = nullptr;
-    SDL_Texture* tex_bullet = nullptr;
-    SDL_Texture* tex_melee1 = nullptr;
-    SDL_Texture* tex_melee2 = nullptr;
-    SDL_Texture* tex_melee_spin = nullptr;
-    SDL_Texture* tex_hurt = nullptr;
+    SDL_Texture* tex_idle {};
+    SDL_Texture* tex_walk {};
+    SDL_Texture* tex_run {};
+    SDL_Texture* tex_shoot {};
+    SDL_Texture* tex_bullet {};
+    SDL_Texture* tex_melee1 {};
+    SDL_Texture* tex_melee2 {};
+    SDL_Texture* tex_melee_spin {};
+    SDL_Texture* tex_hurt {};
+    SDL_Texture* tex_weapons[6][static_cast<int>(AnimationState::Count)] = {};
+    SDL_Texture* tex_armor[5][3][static_cast<int>(AnimationState::Count)] = {};
 };

@@ -6,6 +6,9 @@
 #include "Structures.h"
 #include "Bullet.h"
 #include "Constants.h"
+#include "Stats.h"
+#include "Stamina.h"
+#include "Equipment.h"
 
 class Player {
     public:
@@ -14,7 +17,6 @@ class Player {
 
     void move(float dt, PlayerIntent intent);
     void draw(SDL_Renderer* renderer);
-    void load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* run, SDL_Texture* shoot, SDL_Texture* bullet, SDL_Texture* melee1, SDL_Texture* melee2, SDL_Texture* melee_spin, SDL_Texture* hurt);
     void reset(float x, float y);
 
     bool is_dashing = {false};
@@ -48,12 +50,28 @@ class Player {
     float hurt_timer = 0.0f;
     float melee_angle = 0.0f;
 
+    PlayerStats stats;
+    Stamina stamina;
+    Loadout equipment;
+    float max_hp;
+    float equip_load_ratio;
+
+    void load_layers(SDL_Texture* layer_texs[SLOT_COUNT]);
+
+    void load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* run,
+                       SDL_Texture* shoot, SDL_Texture* melee1, SDL_Texture* melee2,
+                       SDL_Texture* melee_spin, SDL_Texture* hurt);
+    void load_weapon_textures(SDL_Texture* textures[6][static_cast<int>(AnimationState::Count)]);
+    void load_armor_textures(SDL_Texture* textures[5][3][static_cast<int>(AnimationState::Count)]);
+
     private:
     void advanceFrame(float dt);
     SDL_FRect get_texture_box();
+    int get_animation_index() const;
 
     std::string name;
     std::pair<int,int> direction = {1, 0};
+    SDL_Texture* layers[SLOT_COUNT] = {};
     SDL_Texture* texture {};
     SDL_Texture* idle_texture {};
     SDL_Texture* walk_texture {};
@@ -63,6 +81,8 @@ class Player {
     SDL_Texture* melee2_texture {};
     SDL_Texture* melee_spin_texture {};
     SDL_Texture* hurt_texture {};
+    SDL_Texture* weapon_textures[6][static_cast<int>(AnimationState::Count)] = {};
+    SDL_Texture* armor_textures[5][3][static_cast<int>(AnimationState::Count)] = {};
     Spritesheet spritesheet;
 
     bool is_firing {};

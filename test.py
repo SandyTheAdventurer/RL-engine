@@ -14,7 +14,7 @@ engine.reset()
 
 Game.Visuals.init(engine, p1, p2)
 
-bot = ExpertBot(SCREENW, SCREENH)
+bot = NoopBot(SCREENW, SCREENH)
 
 def run_game():
     engine.reset()

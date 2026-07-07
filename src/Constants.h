@@ -1,10 +1,11 @@
 #pragma once
+#include <array>
 #include <map>
 
 inline constexpr int screenw {1280};
 inline constexpr int screenh {720};
-inline constexpr int playerw {150};
-inline constexpr int playerh {150};
+inline constexpr int playerw {75};
+inline constexpr int playerh {75};
 inline constexpr float playerspeed {200.0f};
 inline constexpr int max_health = {100};
 inline constexpr float spritechange {1.0f / 30};
@@ -38,15 +39,71 @@ inline constexpr float dash_blink_duration = 0.2f;
 inline constexpr float dash_cooldown = 0.3f;
 inline constexpr float dash_speed = dash_distance / dash_blink_duration;
 
-inline constexpr const char* idle_sheet_path = {"assets/1Knight/Idle_Shadowless.png"};
-inline constexpr const char* walk_sheet_path = {"assets/1Knight/Walk_Shadowless.png"};
-inline constexpr const char* run_sheet_path = {"assets/1Knight/Run_Shadowless.png"};
-inline constexpr const char* shoot_sheet_path = {"assets/1Knight/CastSpell_Shadowless.png"};
-inline constexpr const char* bullet_sheet_path = {"assets/bullet.png"};
-inline constexpr const char* melee1_sheet_path = {"assets/1Knight/Melee_Shadowless.png"};
-inline constexpr const char* melee2_sheet_path = {"assets/1Knight/Melee2_Shadowless.png"};
-inline constexpr const char* melee_spin_sheet_path = {"assets/1Knight/MeleeSpin_Shadowless.png"};
-inline constexpr const char* hurt_sheet_path = {"assets/1Knight/TakeDamage_Shadowless.png"};
+inline constexpr int sprite_frame_count = 24;
+inline constexpr int sprite_direction_count = 8;
+
+enum class AnimationState {
+    Idle,
+    Walk,
+    Run,
+    CastShoot,
+    Melee1,
+    Melee2,
+    MeleeSpin,
+    Hurt,
+    Count
+};
+
+inline constexpr std::array<const char*, static_cast<int>(AnimationState::Count)> animation_suffixes = {
+    "idle",
+    "walk",
+    "run",
+    "cast_shoot",
+    "melee_1",
+    "melee_2",
+    "melee_spin",
+    "hurt"
+};
+
+inline constexpr std::array<const char*, 6> weapon_sheet_names = {
+    "katana",
+    "short_sword",
+    "daggers",
+    "great_sword",
+    "shield",
+    "staff"
+};
+
+inline constexpr std::array<const char*, 5> armor_tier_names = {
+    "Cloth",
+    "LightLeather",
+    "MediumChain",
+    "HeavyPlate",
+    "UltraHeavy"
+};
+
+inline constexpr std::array<const char*, 3> armor_slot_names = {
+    "head",
+    "chest",
+    "legs"
+};
+
+inline constexpr const char* generated_base_dir = {"assets/Base_Character"};
+inline constexpr const char* generated_weapon_dir = {"assets/Weapons"};
+inline constexpr const char* generated_armor_dir = {"assets/Armor"};
+inline constexpr const char* generated_projectile_path = {"assets/Projectiles/bullet_projectile.png"};
+
+inline constexpr float melee_combo_multipliers[3] = {1.0f, 1.3f, 1.8f};
+inline constexpr float base_max_stamina = 100.0f;
+inline constexpr float base_stamina_regen = 40.0f;
+inline constexpr float stamina_regen_delay = 0.5f;
+inline constexpr float dash_stamina_cost = 30.0f;
+inline constexpr float melee_stamina_cost = 20.0f;
+inline constexpr float default_stat_value = 20.0f;
+inline constexpr float max_stat_value = 99.0f;
+inline constexpr int obs_dim = 83;
+
+struct PlayerStats;
 
 enum class GameState {
     START,
