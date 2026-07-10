@@ -10,8 +10,17 @@
 #include "Stamina.h"
 #include "Equipment.h"
 
+struct Weapon {
+    SDL_Texture* texture = nullptr;
+    float angle = 0.0f;
+    bool is_swinging = false;
+    int combo_step = 1;
+    float swing_timer = 0.0f;
+};
+
 class Player {
     public:
+    Weapon weapon;
     Player(float x, float y, float speed, std::string name);
     ~Player();
 
@@ -19,6 +28,7 @@ class Player {
     void draw(SDL_Renderer* renderer);
     void reset(float x, float y);
 
+    bool is_moving = {false};
     bool is_dashing = {false};
     bool is_iframe = {false};
 
@@ -56,13 +66,8 @@ class Player {
     float max_hp;
     float equip_load_ratio;
 
-    void load_layers(SDL_Texture* layer_texs[SLOT_COUNT]);
-
-    void load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* run,
-                       SDL_Texture* shoot, SDL_Texture* melee1, SDL_Texture* melee2,
-                       SDL_Texture* melee_spin, SDL_Texture* hurt);
-    void load_weapon_textures(SDL_Texture* textures[6][static_cast<int>(AnimationState::Count)]);
-    void load_armor_textures(SDL_Texture* textures[5][3][static_cast<int>(AnimationState::Count)]);
+    void load_texture(AnimationState state, SDL_Texture* tex);
+    void load_weapon_texture(SDL_Texture* tex);
 
     private:
     void advanceFrame(float dt);
@@ -70,21 +75,11 @@ class Player {
     int get_animation_index() const;
 
     std::string name;
-    std::pair<int,int> direction = {1, 0};
-    SDL_Texture* layers[SLOT_COUNT] = {};
-    SDL_Texture* texture {};
-    SDL_Texture* idle_texture {};
-    SDL_Texture* walk_texture {};
-    SDL_Texture* run_texture {};
-    SDL_Texture* shoot_texture {};
-    SDL_Texture* melee1_texture {};
-    SDL_Texture* melee2_texture {};
-    SDL_Texture* melee_spin_texture {};
-    SDL_Texture* hurt_texture {};
-    SDL_Texture* weapon_textures[6][static_cast<int>(AnimationState::Count)] = {};
-    SDL_Texture* armor_textures[5][3][static_cast<int>(AnimationState::Count)] = {};
-    Spritesheet spritesheet;
+    std::pair<int,int> direction = {0, 1};
+    SDL_Texture* textures[static_cast<int>(AnimationState::Count)] = {};
+    Spritesheet* spritesheets[static_cast<int>(AnimationState::Count)] = {};
 
+    SDL_Texture* weapon_texture = nullptr;
     bool is_firing {};
     float anim_timer {};
     float fire_anim_timer {};

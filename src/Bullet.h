@@ -20,5 +20,5 @@ class Bullet {
     float angle;
     float vx;
     float vy;
-    SDL_Texture* texture;
+    SDL_Texture* texture = nullptr;
 };

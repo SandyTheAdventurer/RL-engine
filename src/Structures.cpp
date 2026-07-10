@@ -1,5 +1,10 @@
 #include "Structures.h"
 
+Spritesheet::Spritesheet(int tile_size, int cols)
+    : TILE_SIZE(tile_size), COLS(cols)
+{
+}
+
 SDL_FRect Spritesheet::getSrc(int row, int col) const
 {
     return SDL_FRect{
