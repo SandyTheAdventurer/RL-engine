@@ -62,7 +62,7 @@ struct ArmorPiece {
 };
 
 struct Loadout {
-    WeaponType weapon = WeaponType::ShortSword;
+    WeaponType weapon = WeaponType::Katana;
     ArmorTier head = ArmorTier::LightLeather;
     ArmorTier chest = ArmorTier::LightLeather;
     ArmorTier legs = ArmorTier::LightLeather;

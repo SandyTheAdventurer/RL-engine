@@ -4,13 +4,13 @@
 
 inline constexpr int screenw {1280};
 inline constexpr int screenh {720};
-inline constexpr int playerw {150};
-inline constexpr int playerh {150};
+inline constexpr int playerw {75};
+inline constexpr int playerh {75};
 inline constexpr float playerspeed {200.0f};
 inline constexpr int max_health = {100};
-inline constexpr float spritechange {1.0f / 30};
-inline constexpr float fire_spritechange {1.0f / 60};
-inline constexpr float attack_spritechange {1.0f / 25};
+inline constexpr float spritechange {1.0f / 8.0f};
+inline constexpr float fire_spritechange {1.0f / 10.0f};
+inline constexpr float attack_spritechange {1.0f / 10.0f};
 inline constexpr float hurt_flash_duration = 0.12f;
 inline constexpr float hitbox_size {24.0f};
 inline constexpr float bullet_speed {750.0f};
@@ -29,7 +29,7 @@ inline constexpr float max_dist {1468.6f};
 inline constexpr float melee_damage = 12.0f;
 inline constexpr float melee_range = 10.0f;
 inline constexpr float melee_cooldown = 0.2f;
-inline constexpr float combo_window = 0.3f;
+inline constexpr float combo_window = 0.8f;
 inline constexpr int max_combo_stage = 2;
 inline constexpr float melee_half_arc = 0.7854f;
 inline constexpr float melee_outer_r = playerw / 2.0f + melee_range;
@@ -39,7 +39,6 @@ inline constexpr float dash_blink_duration = 0.2f;
 inline constexpr float dash_cooldown = 0.3f;
 inline constexpr float dash_speed = dash_distance / dash_blink_duration;
 
-inline constexpr int sprite_frame_count = 24;
 inline constexpr int sprite_direction_count = 8;
 
 enum class AnimationState {
@@ -51,6 +50,7 @@ enum class AnimationState {
     Melee2,
     MeleeSpin,
     Hurt,
+    Dash,
     Count
 };
 
@@ -58,11 +58,25 @@ inline constexpr std::array<const char*, static_cast<int>(AnimationState::Count)
     "idle",
     "walk",
     "run",
-    "cast_shoot",
-    "melee_1",
-    "melee_2",
-    "melee_spin",
-    "hurt"
+    "cast",
+    "slash",
+    "slash2",
+    "slash3",
+    "hurt",
+    "dash"
+};
+
+// Per-animation frame counts (dungeonSprites: 4 frames per direction)
+inline constexpr std::array<int, static_cast<int>(AnimationState::Count)> sprite_frame_counts = {
+    4,  // Idle
+    4,  // Walk
+    4,  // Run
+    4,  // CastShoot
+    4,  // Melee1 (slash)
+    4,  // Melee2 (slash2)
+    4,  // MeleeSpin (slash3)
+    4,  // Hurt
+    4,  // Dash
 };
 
 inline constexpr std::array<const char*, 6> weapon_sheet_names = {
@@ -88,10 +102,7 @@ inline constexpr std::array<const char*, 3> armor_slot_names = {
     "legs"
 };
 
-inline constexpr const char* generated_base_dir = {"assets/Base_Character"};
-inline constexpr const char* generated_weapon_dir = {"assets/Weapons"};
-inline constexpr const char* generated_armor_dir = {"assets/Armor"};
-inline constexpr const char* generated_projectile_path = {"assets/Projectiles/bullet_projectile.png"};
+inline constexpr const char* asset_dir = {"assets"};
 
 inline constexpr float melee_combo_multipliers[3] = {1.0f, 1.3f, 1.8f};
 inline constexpr float base_max_stamina = 100.0f;

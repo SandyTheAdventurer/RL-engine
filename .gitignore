@@ -4,4 +4,3 @@ __pycache__/
 *.pt
 bc_data.jsonl
 train_dir/
-assets/

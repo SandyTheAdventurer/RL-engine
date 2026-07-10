@@ -14,7 +14,7 @@ engine.reset()
 
 Game.Visuals.init(engine, p1, p2)
 
-bot = NoopBot(SCREENW, SCREENH)
+bot = ExpertBot(SCREENW, SCREENH)
 
 def run_game():
     engine.reset()
@@ -44,6 +44,7 @@ def run_game():
 
         if engine.is_done():
             Game.Visuals.end_screen(engine)
+            engine.present()
             while True:
                 frame = Game.poll_events()
                 if frame.mouse_left_clicked:
@@ -52,18 +53,23 @@ def run_game():
                     break
                 if frame.quit:
                     return False
+                engine.present()
             engine.reset()
 
     return True
 
 Game.Visuals.start_screen(engine)
+engine.present()
 while True:
     frame = Game.poll_events()
     if frame.mouse_left_clicked:
         if not run_game():
             break
+        Game.Visuals.start_screen(engine)
+        engine.present()
     if frame.quit:
         break
+    engine.present()
 
 Game.Visuals.shutdown()
 engine.close()

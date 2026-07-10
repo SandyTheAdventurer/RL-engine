@@ -5,17 +5,10 @@
 #include <ctime>
 #include <SDL3_image/SDL_image.h>
 #include <string>
+#include <cstdio>
 #include <stdexcept>
 
-namespace {
-std::string make_path(const char* folder, const char* stem, const char* suffix) {
-    return std::string(folder) + "/" + stem + "_" + suffix + ".png";
-}
-
-std::string make_armor_path(const char* folder, const char* tier, const char* slot, const char* suffix) {
-    return std::string(folder) + "/" + tier + "/" + tier + "_" + slot + "_" + suffix + ".png";
-}
-}
+static constexpr int animation_count = static_cast<int>(AnimationState::Count);
 
 Engine::Engine(bool vsync, bool render, Player& p1, Player& p2, int screenw, int screenh)
     : p1(p1), p2(p2), screenw(screenw), screenh(screenh), vsync(vsync), is_render(render)
@@ -39,33 +32,46 @@ Engine::Engine(bool vsync, bool render, Player& p1, Player& p2, int screenw, int
         }
         SDL_SetRenderVSync(renderer, vsync ? 1 : 0);
 
-        tex_idle   = IMG_LoadTexture(renderer, make_path(generated_base_dir, "base", animation_suffixes[static_cast<int>(AnimationState::Idle)]).c_str());
-        tex_walk   = IMG_LoadTexture(renderer, make_path(generated_base_dir, "base", animation_suffixes[static_cast<int>(AnimationState::Walk)]).c_str());
-        tex_run    = IMG_LoadTexture(renderer, make_path(generated_base_dir, "base", animation_suffixes[static_cast<int>(AnimationState::Run)]).c_str());
-        tex_shoot  = IMG_LoadTexture(renderer, make_path(generated_base_dir, "base", animation_suffixes[static_cast<int>(AnimationState::CastShoot)]).c_str());
-        tex_bullet = IMG_LoadTexture(renderer, generated_projectile_path);
-        tex_melee1 = IMG_LoadTexture(renderer, make_path(generated_base_dir, "base", animation_suffixes[static_cast<int>(AnimationState::Melee1)]).c_str());
-        tex_melee2 = IMG_LoadTexture(renderer, make_path(generated_base_dir, "base", animation_suffixes[static_cast<int>(AnimationState::Melee2)]).c_str());
-        tex_melee_spin = IMG_LoadTexture(renderer, make_path(generated_base_dir, "base", animation_suffixes[static_cast<int>(AnimationState::MeleeSpin)]).c_str());
-        tex_hurt   = IMG_LoadTexture(renderer, make_path(generated_base_dir, "base", animation_suffixes[static_cast<int>(AnimationState::Hurt)]).c_str());
+        for (int i = 0; i < animation_count; ++i) {
+            std::string path = std::string(asset_dir) + "/" + animation_suffixes[i] + "/" + animation_suffixes[i] + ".png";
+            tex_textures[i] = IMG_LoadTexture(renderer, path.c_str());
+            if (!tex_textures[i]) {
+                fprintf(stderr, "ERROR: Failed to load texture %s: %s\n", path.c_str(), SDL_GetError());
+            } else {
+                float tw, th;
+                SDL_GetTextureSize(tex_textures[i], &tw, &th);
+                fprintf(stderr, "OK: Loaded %s (%.0fx%.0f)\n", path.c_str(), tw, th);
+            }
+        }
+        tex_bullet = IMG_LoadTexture(renderer, "assets/cast/cast.png");
+        if (tex_bullet) {
+            float tw, th;
+            SDL_GetTextureSize(tex_bullet, &tw, &th);
+            fprintf(stderr, "OK: Loaded bullet texture (%.0fx%.0f)\n", tw, th);
+        } else {
+            fprintf(stderr, "ERROR: Failed to load bullet texture %s\n", SDL_GetError());
+        }
+
+        static constexpr const char* weapon_files[6] = {
+            "weapon_r0_c1.png",  // Katana -> stone sword
+            "weapon_r0_c0.png",  // ShortSword -> wood sword
+            "weapon_r6_c1.png",  // Daggers -> small blade
+            "weapon_r0_c2.png",  // GreatSword -> gold sword
+            "weapon_r7_c0.png",  // Shield
+            "weapon_r3_c0.png",  // Staff -> yellow staff
+        };
         for (int i = 0; i < 6; ++i) {
-            for (int j = 0; j < static_cast<int>(AnimationState::Count); ++j) {
-                tex_weapons[i][j] = IMG_LoadTexture(renderer, make_path(generated_weapon_dir, weapon_sheet_names[i], animation_suffixes[j]).c_str());
-            }
+            std::string path = std::string(asset_dir) + "/weapons/" + weapon_files[i];
+            tex_weapons[i] = IMG_LoadTexture(renderer, path.c_str());
         }
-        for (int tier = 0; tier < 5; ++tier) {
-            for (int slot = 0; slot < 3; ++slot) {
-                for (int j = 0; j < static_cast<int>(AnimationState::Count); ++j) {
-                    tex_armor[tier][slot][j] = IMG_LoadTexture(renderer, make_armor_path(generated_armor_dir, armor_tier_names[tier], armor_slot_names[slot], animation_suffixes[j]).c_str());
-                }
-            }
+
+        for (int i = 0; i < animation_count; ++i) {
+            p1.load_texture(static_cast<AnimationState>(i), tex_textures[i]);
+            p2.load_texture(static_cast<AnimationState>(i), tex_textures[i]);
         }
-        p1.load_textures(tex_idle, tex_walk, tex_run, tex_shoot, tex_melee1, tex_melee2, tex_melee_spin, tex_hurt);
-        p2.load_textures(tex_idle, tex_walk, tex_run, tex_shoot, tex_melee1, tex_melee2, tex_melee_spin, tex_hurt);
-        p1.load_weapon_textures(tex_weapons);
-        p2.load_weapon_textures(tex_weapons);
-        p1.load_armor_textures(tex_armor);
-        p2.load_armor_textures(tex_armor);
+        p1.load_weapon_texture(tex_weapons[static_cast<int>(p1.equipment.weapon)]);
+        p2.load_weapon_texture(tex_weapons[static_cast<int>(p2.equipment.weapon)]);
+
         for (Bullet& b : p1.bullets) { b.load_textures(tex_bullet); }
         for (Bullet& b : p2.bullets) { b.load_textures(tex_bullet); }
     }
@@ -197,29 +203,13 @@ void Engine::present() {
 
 void Engine::close() {
     if (renderer) {
-        SDL_DestroyTexture(tex_idle);
-        SDL_DestroyTexture(tex_walk);
-        SDL_DestroyTexture(tex_run);
-        SDL_DestroyTexture(tex_shoot);
-        SDL_DestroyTexture(tex_bullet);
-        SDL_DestroyTexture(tex_melee1);
-        SDL_DestroyTexture(tex_melee2);
-        SDL_DestroyTexture(tex_melee_spin);
-        SDL_DestroyTexture(tex_hurt);
+        for (int i = 0; i < animation_count; ++i) {
+            SDL_DestroyTexture(tex_textures[i]);
+        }
         for (int i = 0; i < 6; ++i) {
-            for (int j = 0; j < static_cast<int>(AnimationState::Count); ++j) {
-                SDL_DestroyTexture(tex_weapons[i][j]);
-            }
+            SDL_DestroyTexture(tex_weapons[i]);
         }
-        for (int tier = 0; tier < 5; ++tier) {
-            for (int slot = 0; slot < 3; ++slot) {
-                for (int j = 0; j < static_cast<int>(AnimationState::Count); ++j) {
-                    SDL_DestroyTexture(tex_armor[tier][slot][j]);
-                }
-            }
-        }
-        tex_idle = tex_walk = tex_run = tex_shoot = tex_bullet = nullptr;
-        tex_melee1 = tex_melee2 = tex_melee_spin = tex_hurt = nullptr;
+        SDL_DestroyTexture(tex_bullet);
 
         SDL_DestroyRenderer(renderer);
         renderer = nullptr;

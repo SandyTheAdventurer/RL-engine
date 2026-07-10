@@ -31,15 +31,7 @@ private:
     bool is_render;
     bool done = false;
 
-    SDL_Texture* tex_idle {};
-    SDL_Texture* tex_walk {};
-    SDL_Texture* tex_run {};
-    SDL_Texture* tex_shoot {};
+    SDL_Texture* tex_textures[static_cast<int>(AnimationState::Count)] = {};
+    SDL_Texture* tex_weapons[6] = {};
     SDL_Texture* tex_bullet {};
-    SDL_Texture* tex_melee1 {};
-    SDL_Texture* tex_melee2 {};
-    SDL_Texture* tex_melee_spin {};
-    SDL_Texture* tex_hurt {};
-    SDL_Texture* tex_weapons[6][static_cast<int>(AnimationState::Count)] = {};
-    SDL_Texture* tex_armor[5][3][static_cast<int>(AnimationState::Count)] = {};
 };

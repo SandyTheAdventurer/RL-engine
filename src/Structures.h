@@ -5,9 +5,11 @@
 
 struct Spritesheet
 {
-    static constexpr int TILE_SIZE = 128;
-    static constexpr int COLS = 24;
+    int TILE_SIZE;
+    int COLS;
     static constexpr int ROWS = 8;
+
+    Spritesheet(int tile_size, int cols);
 
     SDL_FRect getSrc(int row, int col) const;
     std::pair<int,int> getIndex(float x, float y) const;

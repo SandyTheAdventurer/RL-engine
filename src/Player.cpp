@@ -1,6 +1,7 @@
 #include "Player.h"
 #include "Constants.h"
 #include <cmath>
+#include <cstdio>
 #include <algorithm>
 
 static constexpr int animation_count = static_cast<int>(AnimationState::Count);
@@ -16,9 +17,16 @@ Player::Player(float x, float y, float speed, std::string name)
     max_hp = calc_max_hp(stats);
     health = max_hp;
     equip_load_ratio = calc_equip_load_ratio(equipment, stats);
+
+    for (int i = 0; i < animation_count; ++i) {
+        spritesheets[i] = new Spritesheet(128, sprite_frame_counts[i]);
+    }
 }
 
 Player::~Player() {
+    for (int i = 0; i < animation_count; ++i) {
+        delete spritesheets[i];
+    }
 }
 
 void Player::move(float dt, PlayerIntent intent) {
@@ -46,12 +54,13 @@ void Player::move(float dt, PlayerIntent intent) {
     }
 
     if (is_dashing) {
+        is_moving = false;
         dash_timer -= dt;
 
         float ds_mod = calc_dash_speed_mod(stats) * calc_armor_dash_speed_mod(equipment);
         float dd_mod = calc_dash_distance_mod(stats) * calc_armor_dash_dist_mod(equipment);
         vx = dash_dir_x * dash_speed * ds_mod * dd_mod;
-        vy = -dash_dir_y * dash_speed * ds_mod * dd_mod;
+        vy = dash_dir_y * dash_speed * ds_mod * dd_mod;
         if (dash_dir_x != 0 && dash_dir_y != 0) {
             vx *= 0.7071f;
             vy *= 0.7071f;
@@ -101,8 +110,10 @@ void Player::move(float dt, PlayerIntent intent) {
 
     if (is_attacking || is_firing) { vx = 0; vy = 0; }
 
+    is_moving = (!is_attacking && !is_firing && (intent.mx != 0 || intent.my != 0));
+
     if (!is_attacking && !is_firing && (intent.mx != 0 || intent.my != 0))
-        direction = {intent.mx, -intent.my};
+        direction = {intent.mx, intent.my};
 
     if (intent.mx != 0 && intent.my != 0){
         vx *= 0.7071f;
@@ -138,11 +149,15 @@ void Player::move(float dt, PlayerIntent intent) {
                     combo_stage = 0;
                 combo_timer = 0;
 
-                float cx = box.x + playerw / 2.0f;
-                float cy = box.y + playerh / 2.0f;
+                weapon.is_swinging = true;
+                weapon.combo_step = combo_stage + 1;
+                weapon.swing_timer = 0.0f;
+
+                float cx = box.x + box.w / 2.0f;
+                float cy = box.y + box.h / 2.0f;
                 float aim_dx = intent.aim_x - cx;
                 float aim_dy = intent.aim_y - cy;
-                float melee_angle = std::atan2(aim_dy, aim_dx);
+                melee_angle = std::atan2(aim_dy, aim_dx);
                 float a = std::fmod(melee_angle + 2.0f * static_cast<float>(M_PI), 2.0f * static_cast<float>(M_PI)) + 1;
 
                 const float TWO_PI = 2.0f * static_cast<float>(M_PI);
@@ -158,7 +173,7 @@ void Player::move(float dt, PlayerIntent intent) {
     if (intent.fire && ammo > 0 && fire_cooldown_timer <= 0 && !is_reloading && !is_attacking) {
         for(Bullet& b: bullets) {
             if(b.isLoaded) {
-                b.fire(box.x + playerw / 2, box.y + playerh / 2, intent.aim_x, intent.aim_y);
+                b.fire(box.x + box.w / 2, box.y + box.h / 2, intent.aim_x, intent.aim_y);
                 is_firing = true;
                 fire_cooldown_timer = fire_rate;
                 ammo--;
@@ -168,8 +183,8 @@ void Player::move(float dt, PlayerIntent intent) {
                 combo_stage = 0;
                 combo_timer = 0;
 
-                float aim_dx = intent.aim_x - (box.x + playerw / 2);
-                float aim_dy = intent.aim_y - (box.y + playerh / 2);
+                float aim_dx = intent.aim_x - (box.x + box.w / 2);
+                float aim_dy = intent.aim_y - (box.y + box.h / 2);
                 float angle = std::atan2(aim_dy, aim_dx);
                 float a = std::fmod(angle + 2 * M_PI, 2 * M_PI);
                 int sector = static_cast<int>(std::floor((a + M_PI / 8.0) / (M_PI / 4.0))) % 8;
@@ -188,18 +203,6 @@ void Player::move(float dt, PlayerIntent intent) {
         }
     }
 
-    // Select action-specific texture
-    if (is_attacking) {
-        switch (combo_stage) {
-            case 0: texture = melee1_texture; break;
-            case 1: texture = melee2_texture; break;
-            default: texture = melee_spin_texture; break;
-        }
-    } else if (is_firing)
-        texture = shoot_texture;
-    else
-        texture = (intent.mx == 0 && intent.my == 0) ? idle_texture : walk_texture;
-
     for(Bullet& b: bullets) {b.move(dt);}
     advanceFrame(dt);
 }
@@ -208,46 +211,56 @@ void Player::draw(SDL_Renderer* renderer) {
     SDL_FRect src = get_texture_box();
     int action_idx = get_animation_index();
 
-    // Check if compositing layers are loaded
-    bool has_layers = false;
-    for (int i = 0; i < SLOT_COUNT; ++i) {
-        if (layers[i]) { has_layers = true; break; }
+    SDL_Texture* tex = textures[action_idx];
+    if (tex) {
+        float tw, th;
+        SDL_GetTextureSize(tex, &tw, &th);
+        if (src.x + src.w > tw || src.y + src.h > th) {
+            fprintf(stderr, "WARN: %s sprite src (%.0f,%.0f %.0fx%.0f) exceeds texture (%.0fx%.0f)\n",
+                    name.c_str(), src.x, src.y, src.w, src.h, tw, th);
+        }
+        SDL_RenderTexture(renderer, tex, &src, &box);
+    } else {
+        fprintf(stderr, "WARN: %s no texture for action_idx=%d\n", name.c_str(), action_idx);
     }
 
-    if (has_layers) {
-        SDL_FRect dst = box;
-        for (int i = 0; i < SLOT_COUNT; ++i) {
-            if (layers[i]) SDL_RenderTexture(renderer, layers[i], &src, &dst);
-        }
-    } else {
-        SDL_Texture* draw_tex = (hurt_timer > 0) ? hurt_texture : texture;
-        if (draw_tex) SDL_RenderTexture(renderer, draw_tex, &src, &box);
+    if (weapon.is_swinging && weapon.texture) {
+        float cx = box.x + box.w / 2.0f;
+        float cy = box.y + box.h / 2.0f;
+        float hand_dist = box.w * 0.25f;
+        float hx = cx + std::cos(melee_angle) * hand_dist;
+        float hy = cy + std::sin(melee_angle) * hand_dist;
+        
+        float weapon_width = 48.0f;
+        float weapon_height = 64.0f;
+        
+        SDL_FPoint pivot;
+        pivot.x = weapon_width / 2.0f;
+        pivot.y = weapon_height;
 
-        SDL_Texture* legs_tex = armor_textures[static_cast<int>(equipment.legs)][static_cast<int>(ArmorSlot::Legs)][action_idx];
-        SDL_Texture* chest_tex = armor_textures[static_cast<int>(equipment.chest)][static_cast<int>(ArmorSlot::Chest)][action_idx];
-        SDL_Texture* head_tex = armor_textures[static_cast<int>(equipment.head)][static_cast<int>(ArmorSlot::Head)][action_idx];
-        if (legs_tex) SDL_RenderTexture(renderer, legs_tex, &src, &box);
-        if (chest_tex) SDL_RenderTexture(renderer, chest_tex, &src, &box);
-        if (head_tex) SDL_RenderTexture(renderer, head_tex, &src, &box);
+        SDL_FRect dstrect = {hx - pivot.x, hy - pivot.y, weapon_width, weapon_height};
 
-        int wpn_idx = static_cast<int>(equipment.weapon);
-        if (weapon_textures[wpn_idx][action_idx]) {
-            SDL_RenderTexture(renderer, weapon_textures[wpn_idx][action_idx], &src, &box);
-        }
+        SDL_RenderTextureRotated(
+            renderer, 
+            weapon.texture, 
+            nullptr,
+            &dstrect, 
+            weapon.angle, 
+            &pivot,
+            SDL_FLIP_NONE
+        );
     }
 
     float bar_y = box.y - bar_y_offset;
 
-    // Health bar
     SDL_FRect hp_bg = {box.x, bar_y, box.w, bar_h};
     SDL_SetRenderDrawColor(renderer, 60, 60, 60, 255);
     SDL_RenderFillRect(renderer, &hp_bg);
     float hp_ratio = health / max_hp;
-    SDL_FRect hp_fill = {box.x, bar_y, box.w * hp_ratio, bar_h};
+    SDL_FRect hp_fill = {box.x, bar_y - 50.0f, box.w * hp_ratio, bar_h};
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
     SDL_RenderFillRect(renderer, &hp_fill);
 
-    // Stamina bar
     float stam_y = bar_y + bar_h + 2;
     SDL_FRect stam_bg = {box.x, stam_y, box.w, bar_h - 2};
     SDL_SetRenderDrawColor(renderer, 40, 40, 50, 255);
@@ -292,78 +305,78 @@ void Player::draw(SDL_Renderer* renderer) {
 }
 
 void Player::advanceFrame(float dt) {
+    int idx = get_animation_index();
+    int max_frames = sprite_frame_counts[idx];
+
     if (is_attacking) {
+        weapon.is_swinging = true;
+        weapon.swing_timer += dt;
+
+        int anim_idx = get_animation_index();
+        float total_frames = sprite_frame_counts[anim_idx];
+        float total_time = total_frames * attack_spritechange;
+        float progress = total_time > 0.0f ? weapon.swing_timer / total_time : 0.0f;
+        progress = std::min(progress, 1.0f);
+
+        float half_arc_deg = melee_half_arc * 180.0f / static_cast<float>(M_PI);
+        float swing_deg = 0.0f;
+        if (combo_stage == 0) {
+            swing_deg = -half_arc_deg + 2.0f * half_arc_deg * progress;
+        } else if (combo_stage == 1) {
+            swing_deg = half_arc_deg - 2.0f * half_arc_deg * progress;
+        } else {
+            swing_deg = -half_arc_deg + progress * 360.0f;
+        }
+        float base_deg = melee_angle * 180.0f / static_cast<float>(M_PI) + 90.0f;
+        weapon.angle = base_deg + swing_deg;
+
         attack_anim_timer += dt;
         if (attack_anim_timer >= attack_spritechange) {
             attack_anim_timer -= attack_spritechange;
             texture_state++;
-            if (texture_state >= sprite_frame_count) {
+            if (texture_state >= max_frames) {
                 is_attacking = false;
+                weapon.is_swinging = false;
                 texture_state = 0;
                 attack_cooldown_timer = melee_cooldown;
                 combo_timer = combo_window;
             }
         }
-    } else if (is_firing) {
-        fire_anim_timer += dt;
-        if (fire_anim_timer >= fire_spritechange) {
-            fire_anim_timer -= fire_spritechange;
-            texture_state++;
-            if (texture_state >= sprite_frame_count) {
-                is_firing = false;
-                texture_state = 0;
-            }
-        }
     } else {
-        anim_timer += dt;
-        if (anim_timer >= spritechange) {
-            anim_timer -= spritechange;
-            texture_state = (texture_state + 1) % sprite_frame_count;
-        }
-    }
-}
-
-void Player::load_layers(SDL_Texture* layer_texs[SLOT_COUNT]) {
-    for (int i = 0; i < SLOT_COUNT; ++i) {
-        layers[i] = layer_texs[i];
-    }
-}
-
-void Player::load_textures(SDL_Texture* idle, SDL_Texture* walk, SDL_Texture* run,
-                           SDL_Texture* shoot, SDL_Texture* melee1, SDL_Texture* melee2,
-                           SDL_Texture* melee_spin, SDL_Texture* hurt)
-{
-    idle_texture = idle;
-    walk_texture = walk;
-    run_texture = run;
-    shoot_texture = shoot;
-    melee1_texture = melee1;
-    melee2_texture = melee2;
-    melee_spin_texture = melee_spin;
-    hurt_texture = hurt;
-    texture = idle;
-}
-
-void Player::load_weapon_textures(SDL_Texture* textures[6][animation_count]) {
-    for (int i = 0; i < 6; ++i) {
-        for (int j = 0; j < animation_count; ++j) {
-            weapon_textures[i][j] = textures[i][j];
-        }
-    }
-}
-
-void Player::load_armor_textures(SDL_Texture* textures[5][3][animation_count]) {
-    for (int tier = 0; tier < 5; ++tier) {
-        for (int slot = 0; slot < 3; ++slot) {
-            for (int action = 0; action < animation_count; ++action) {
-                armor_textures[tier][slot][action] = textures[tier][slot][action];
+        weapon.is_swinging = false;
+        weapon.swing_timer = 0.0f;
+        if (is_firing) {
+            fire_anim_timer += dt;
+            if (fire_anim_timer >= fire_spritechange) {
+                fire_anim_timer -= fire_spritechange;
+                texture_state++;
+                if (texture_state >= max_frames) {
+                    is_firing = false;
+                    texture_state = 0;
+                }
+            }
+        } else {
+            anim_timer += dt;
+            if (anim_timer >= spritechange) {
+                anim_timer -= spritechange;
+                texture_state = (texture_state + 1) % max_frames;
             }
         }
     }
+}
+
+void Player::load_texture(AnimationState state, SDL_Texture* tex) {
+    textures[static_cast<int>(state)] = tex;
+}
+
+void Player::load_weapon_texture(SDL_Texture* tex) {
+    weapon_texture = tex;
+    weapon.texture = tex;
 }
 
 SDL_FRect Player::get_texture_box() {
-    return spritesheet.getSrc(dirIndex.at(direction), texture_state);
+    int idx = get_animation_index();
+    return spritesheets[idx]->getSrc(dirIndex.at(direction), texture_state);
 }
 
 int Player::get_animation_index() const {
@@ -380,10 +393,10 @@ int Player::get_animation_index() const {
     if (is_firing) {
         return static_cast<int>(AnimationState::CastShoot);
     }
-    if (texture == run_texture) {
-        return static_cast<int>(AnimationState::Run);
+    if (is_dashing) {
+        return static_cast<int>(AnimationState::Dash);
     }
-    if (texture == walk_texture) {
+    if (is_moving) {
         return static_cast<int>(AnimationState::Walk);
     }
     return static_cast<int>(AnimationState::Idle);
@@ -400,6 +413,10 @@ void Player::reset(float x, float y) {
     is_attacking = false;
     hit_this_swing = false;
     combo_stage = 0;
+    weapon.is_swinging = false;
+    weapon.combo_step = 1;
+    weapon.swing_timer = 0.0f;
+    weapon.angle = 0.0f;
     dash_timer = 0.0f;
     dash_cooldown_timer = 0.0f;
     reload_timer = 0.0f;

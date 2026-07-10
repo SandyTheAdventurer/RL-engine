@@ -31,7 +31,7 @@ void Bullet::move(float dt) {
 void Bullet::draw(SDL_Renderer* renderer) {
     if (!isShot)
         return;
-    SDL_FRect src = {0, 0, 32, 32};
+    SDL_FRect src = {0, 0, 128, 128};
     SDL_RenderTextureRotated(renderer, texture, &src, &hitbox, angle, NULL, SDL_FLIP_NONE);
 }
 
