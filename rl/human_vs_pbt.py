@@ -35,14 +35,14 @@ def decode_action(action, center_xy):
     my = int(action[1]) - 1
     fire = bool(action[2])
     dash = bool(action[3])
-    reload = bool(action[4])
+    spell = int(action[4])
     attack = bool(action[5])
     bucket = int(action[6])
     angle = bucket * (2.0 * math.pi / AIM_DIRECTIONS)
     cx, cy = center_xy
     aim_x = cx + math.cos(angle) * AIM_RADIUS
     aim_y = cy - math.sin(angle) * AIM_RADIUS
-    return Game.PlayerIntent(mx, my, fire, dash, reload, aim_x, aim_y, attack)
+    return Game.PlayerIntent(mx, my, fire, dash, spell, aim_x, aim_y, attack)
 
 
 def run_match(engine, human, bot, bot_model, device, rnn_size):
@@ -54,22 +54,25 @@ def run_match(engine, human, bot, bot_model, device, rnn_size):
         if frame.quit:
             return False
 
-        human_intent = Game.get_human_intent(frame)
+        if not engine.is_done():
+            human_intent = Game.get_human_intent(frame)
 
-        obs = engine.observe(bot, human)
-        obs_t = torch.from_numpy(obs.copy()).unsqueeze(0).float()
-        obs_dict = {"obs": obs_t}
-        normalized_obs = prepare_and_normalize_obs(bot_model, obs_dict)
-        policy_outputs = bot_model(normalized_obs, rnn_states)
-        raw_actions = policy_outputs["actions"]
-        rnn_states = policy_outputs["new_rnn_states"]
+            obs = engine.observe(bot, human)
+            obs_t = torch.from_numpy(obs.copy()).unsqueeze(0).float()
+            obs_dict = {"obs": obs_t}
+            normalized_obs = prepare_and_normalize_obs(bot_model, obs_dict)
+            policy_outputs = bot_model(normalized_obs, rnn_states)
+            raw_actions = policy_outputs["actions"]
+            rnn_states = policy_outputs["new_rnn_states"]
 
-        act = raw_actions[0].cpu().numpy().astype(int)
-        self_center = (obs[4] * SCREENW, obs[5] * SCREENH)
-        bot_intent = decode_action(act, self_center)
+            act = raw_actions[0].cpu().numpy().astype(int)
+            self_center = (obs[4] * SCREENW, obs[5] * SCREENH)
+            bot_intent = decode_action(act, self_center)
 
-        engine.step(human_intent, bot_intent, ENGINE_DT)
+            engine.step(human_intent, bot_intent, ENGINE_DT)
+
         engine.render()
+        Game.Visuals.hud(engine)
         engine.present()
 
         target = clock + ENGINE_DT
@@ -79,17 +82,19 @@ def run_match(engine, human, bot, bot_model, device, rnn_size):
         clock = target
 
         if engine.is_done():
-            Game.Visuals.end_screen(engine)
+            Game.Visuals.stop_fight_music()
             while True:
                 frame = Game.poll_events()
-                if frame.mouse_left_clicked:
-                    return False
-                if frame.mouse_right_clicked:
-                    break
                 if frame.quit:
+                    return False
+                res = Game.Visuals.end_menu(engine, frame)
+                if res == Game.MenuResult.RESTART:
+                    break
+                if res == Game.MenuResult.QUIT:
                     return False
             rnn_states = torch.zeros([1, rnn_size], dtype=torch.float32, device=device)
             engine.reset()
+            clock = time.time()
 
     return True
 
@@ -119,13 +124,16 @@ Game.Visuals.init(engine, human, bot)
 
 engine.reset()
 
-Game.Visuals.start_screen(engine)
-while True:
+running = True
+while running:
     frame = Game.poll_events()
-    if frame.mouse_left_clicked:
+    if frame.quit:
+        break
+    res = Game.Visuals.start_menu(engine, frame)
+    if res == Game.MenuResult.PLAY:
         if not run_match(engine, human, bot, actor_critic, device, rnn_size):
             break
-    if frame.quit:
+    elif res == Game.MenuResult.QUIT:
         break
 
 Game.Visuals.shutdown()

@@ -9,11 +9,11 @@ import Game
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 MAX_HEALTH = 100
-MAX_AMMO = 6
+MAX_MANA = 50 + 20 * 2
 MAX_PLAYER_VEL = 200
-MAX_BULLET_VEL = 750
 AIM_RADIUS = 1000.0
 MAX_DIST = 1468.6
+SPELL_NAMES = ["Fireball", "IceShard", "LightningBolt", "Barrage"]
 
 MOVE_LEFT, MOVE_STAY_X, MOVE_RIGHT = -1, 0, 1
 MOVE_DOWN, MOVE_STAY_Y, MOVE_UP = -1, 0, 1
@@ -23,8 +23,8 @@ class BaseBot:
     def parse_observation(self, obs):
         state = {
             "health": obs[0] * MAX_HEALTH,
-            "ammo": int(round(obs[1] * MAX_AMMO)),
-            "is_reloading": bool(obs[2]),
+            "mana": obs[1] * MAX_MANA,
+            "stunned": bool(obs[2]),
             "is_dashing": bool(obs[3]),
             "cx": obs[4] * SCREEN_WIDTH,
             "cy": obs[5] * SCREEN_HEIGHT,
@@ -35,19 +35,19 @@ class BaseBot:
             "dy": obs[10] * SCREEN_HEIGHT,
             "enemy_vx": obs[11] * MAX_PLAYER_VEL,
             "enemy_vy": obs[12] * MAX_PLAYER_VEL,
-            "dist": obs[73] * MAX_DIST,
-            "enemy_attacking": bool(obs[74]),
-            "combo_stage": obs[75] * 2,
-            "enemy_bullets": [],
+            "dist": obs[61] * MAX_DIST,
+            "enemy_attacking": bool(obs[62]),
+            "combo_stage": obs[63] * 2,
+            "enemy_projectiles": [],
         }
-        for j in range(6):
-            base_idx = 43 + j * 5
+        for j in range(12):
+            base_idx = 13 + j * 5
             if obs[base_idx] > 0:
-                state["enemy_bullets"].append({
+                state["enemy_projectiles"].append({
                     "rel_x": obs[base_idx + 1] * SCREEN_WIDTH,
                     "rel_y": obs[base_idx + 2] * SCREEN_HEIGHT,
-                    "vx": obs[base_idx + 3] * MAX_BULLET_VEL,
-                    "vy": obs[base_idx + 4] * MAX_BULLET_VEL,
+                    "vx": obs[base_idx + 3] * 500,
+                    "vy": obs[base_idx + 4] * 500,
                 })
         return state
 
@@ -81,16 +81,16 @@ class EasyBot(BaseBot):
             self.current_my = random.choice([MOVE_DOWN, MOVE_STAY_Y, MOVE_UP])
 
         fire = False
-        if self.fire_cooldown <= 0 and random.random() < 0.25 and state["ammo"] > 0:
+        spell = 0
+        if self.fire_cooldown <= 0 and random.random() < 0.25 and state["mana"] > 15:
             fire = True
             self.fire_cooldown = 0.4
+            spell = random.randint(0, 3)
 
         dash = False
         if self.dash_cooldown <= 0 and random.random() < 0.02:
             dash = True
             self.dash_cooldown = 0.3
-
-        reload = state["ammo"] == 0 and random.random() < 0.1
 
         attack = False
         if self.melee_cooldown <= 0 and state["dist"] < 65 and random.random() < 0.3:
@@ -100,7 +100,7 @@ class EasyBot(BaseBot):
         aim_x = state["cx"] + state["dx"] + random.gauss(0, 60)
         aim_y = state["cy"] + state["dy"] + random.gauss(0, 60)
 
-        return self.current_mx, self.current_my, fire, dash, reload, aim_x, aim_y, attack
+        return self.current_mx, self.current_my, fire, dash, spell, aim_x, aim_y, attack
 
 
 class MediumBot(BaseBot):
@@ -123,11 +123,11 @@ class MediumBot(BaseBot):
         aim_y = state["cy"] + state["dy"] + random.gauss(0, 30)
 
         fire = False
-        if self.fire_cooldown <= 0 and state["ammo"] > 0 and state["dist"] < 800:
+        spell = 0
+        if self.fire_cooldown <= 0 and state["mana"] > 15 and state["dist"] < 800:
             fire = True
             self.fire_cooldown = 0.4
-
-        reload = state["ammo"] == 0 and not state["is_reloading"]
+            spell = random.randint(0, 3)
 
         attack = False
         if self.melee_cooldown <= 0 and state["dist"] < 65:
@@ -139,7 +139,7 @@ class MediumBot(BaseBot):
             dash = True
             self.dash_cooldown = 0.3
 
-        return mx, my, fire, dash, reload, aim_x, aim_y, attack
+        return mx, my, fire, dash, spell, aim_x, aim_y, attack
 
 
 class HardBot(BaseBot):
@@ -166,10 +166,9 @@ class HardBot(BaseBot):
         mx, my = MOVE_STAY_X, MOVE_STAY_Y
         dash = False
 
-        # advective dodge
         dodge_x, dodge_y = 0.0, 0.0
         danger_level = 0.0
-        for b in state["enemy_bullets"]:
+        for b in state["enemy_projectiles"]:
             bspeed = math.hypot(b["vx"], b["vy"])
             if bspeed < 1:
                 continue
@@ -192,25 +191,23 @@ class HardBot(BaseBot):
         elif state["dist"] < OPTIMAL_MIN:
             mx, my = self.get_movement_towards(-state["dx"], -state["dy"])
 
-        # dash for danger or panic
         if self.dash_cooldown <= 0:
             if danger_level > 1.0 or (state["dist"] < 150):
                 dash = True
                 self.dash_cooldown = 0.3
 
-        # fire at rate limit
         fire = False
-        if self.fire_cooldown <= 0 and state["ammo"] > 0 and state["dist"] < 700:
+        spell = 0
+        if self.fire_cooldown <= 0 and state["mana"] > 15 and state["dist"] < 700:
             fire = True
             self.fire_cooldown = 0.35
+            if state["dist"] < 200:
+                spell = 2
+            elif random.random() < 0.4:
+                spell = random.randint(0, 1)
+            else:
+                spell = random.randint(0, 3)
 
-        # reload smartly
-        reload = False
-        if not state["is_reloading"]:
-            if state["ammo"] == 0 or (state["ammo"] <= 2 and state["dist"] > OPTIMAL_MAX and danger_level == 0):
-                reload = True
-
-        # melee only when close and not pressing attack
         attack = False
         if self.melee_cooldown <= 0 and state["dist"] < 65:
             attack = True
@@ -219,7 +216,7 @@ class HardBot(BaseBot):
         aim_x = state["cx"] + state["dx"] + random.gauss(0, 15)
         aim_y = state["cy"] + state["dy"] + random.gauss(0, 15)
 
-        return mx, my, fire, dash, reload, aim_x, aim_y, attack
+        return mx, my, fire, dash, spell, aim_x, aim_y, attack
 
 
 class ExpertBot(BaseBot):
@@ -243,7 +240,6 @@ class ExpertBot(BaseBot):
 
         state = self.parse_observation(obs_np)
 
-        # track enemy velocity for prediction
         self.vel_history.append((state["enemy_vx"], state["enemy_vy"], dt))
         if len(self.vel_history) > 3:
             self.vel_history.pop(0)
@@ -253,18 +249,16 @@ class ExpertBot(BaseBot):
             ea_x = (v2[0] - v1[0]) / v2[2]
             ea_y = (v2[1] - v1[1]) / v2[2]
 
-        # predictive aim (pixel coords, not bucket)
-        time_to_hit = state["dist"] / max(MAX_BULLET_VEL, 1.0)
+        time_to_hit = state["dist"] / max(500, 1.0)
         pred_enemy_x = state["cx"] + state["dx"] + (state["enemy_vx"] * time_to_hit) + (0.5 * ea_x * time_to_hit ** 2)
         pred_enemy_y = state["cy"] + state["dy"] + (state["enemy_vy"] * time_to_hit) + (0.5 * ea_y * time_to_hit ** 2)
         aim_x = pred_enemy_x + random.gauss(0, 8)
         aim_y = pred_enemy_y + random.gauss(0, 8)
 
-        # detect threats
         imminent_threats = 0
         critical_iframe = False
         dodge_x, dodge_y = 0.0, 0.0
-        for b in state["enemy_bullets"]:
+        for b in state["enemy_projectiles"]:
             bspeed = math.hypot(b["vx"], b["vy"])
             if bspeed < 1:
                 continue
@@ -286,13 +280,12 @@ class ExpertBot(BaseBot):
                     dodge_x += (repel_x / r) * force
                     dodge_y += (repel_y / r) * force
 
-        # stance management
         self.stance_timer -= dt
         if self.stance_timer <= 0:
             if imminent_threats >= 2:
                 self.current_stance = "EVADE"
                 self.stance_timer = 0.4
-            elif state["dist"] > 450 and state["ammo"] >= 5:
+            elif state["dist"] > 450 and state["mana"] >= 30:
                 self.current_stance = "ASSAULT"
                 self.stance_timer = random.uniform(1.0, 1.8)
             else:
@@ -319,9 +312,6 @@ class ExpertBot(BaseBot):
         fx += -dir_ey * self.circle_dir * 1.4 * speed_mod
         fy += dir_ex * self.circle_dir * 1.4 * speed_mod
 
-        # wall repulsion
-        for bound, force in [(state["cx"], fx), (state["cy"], fy)]:
-            pass
         w_margin, w_force = 120, 3.0
         if state["cx"] < w_margin:
             fx += w_force * ((w_margin - state["cx"]) / w_margin) ** 2
@@ -343,38 +333,36 @@ class ExpertBot(BaseBot):
         mx = 1 if fx > 0.22 else -1 if fx < -0.22 else 0
         my = 1 if fy > 0.22 else -1 if fy < -0.22 else 0
 
-        # dash
         dash = False
         if self.dash_cooldown <= 0.0:
             if critical_iframe:
                 dash = True
-            elif self.current_stance == "ASSAULT" and state["dist"] > 450 and state["ammo"] >= 3:
+            elif self.current_stance == "ASSAULT" and state["dist"] > 450 and state["mana"] >= 20:
                 dash = True
             if dash:
                 self.dash_cooldown = 0.3
 
-        # fire
         fire = False
+        spell = 0
         max_range = 750 if self.current_stance == "ASSAULT" else 600
-        if self.fire_cooldown <= 0 and state["dist"] < max_range and state["ammo"] > 0 and not state["is_reloading"] and not state["is_dashing"] and not dash:
+        if self.fire_cooldown <= 0 and state["dist"] < max_range and state["mana"] > 15:
             fire = True
             self.fire_cooldown = 0.28 if self.current_stance == "ASSAULT" else 0.36
+            if self.current_stance == "ASSAULT":
+                spell = 0
+            elif imminent_threats >= 2:
+                spell = 1
+            elif state["dist"] > 450 and state["mana"] > 20:
+                spell = random.randint(2, 3)
+            else:
+                spell = random.randint(0, 3)
 
-        # reload
-        reload = False
-        if not state["is_reloading"]:
-            if state["ammo"] == 0:
-                reload = True
-            elif state["ammo"] <= 2 and imminent_threats == 0 and self.current_stance != "ASSAULT":
-                reload = True
-
-        # melee
         attack = False
         if self.melee_cooldown <= 0 and state["dist"] < 65:
             attack = True
             self.melee_cooldown = 0.2
 
-        return mx, my, fire, dash, reload, aim_x, aim_y, attack
+        return mx, my, fire, dash, spell, aim_x, aim_y, attack
 
 
 class Human():

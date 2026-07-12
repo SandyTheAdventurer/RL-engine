@@ -67,7 +67,6 @@ class MultiAgentShooterEnv(gym.Env):
 
         self._self_centers = [(540.0, 360.0), (540.0, 360.0)]
         self._prev_health = [100.0, 100.0]
-        self._prev_ammo = [self.p1.ammo, self.p2.ammo]
 
     def _decode_action(self, action, center_xy):
         mx = int(action[0]) - 1
@@ -95,7 +94,6 @@ class MultiAgentShooterEnv(gym.Env):
         self.engine.reset()
         obs = self._observe_both()
         self._prev_health = [self.p1.health, self.p2.health]
-        self._prev_ammo = [self.p1.ammo, self.p2.ammo]
         infos = [{}, {}]
         return obs, infos
 
@@ -119,12 +117,6 @@ class MultiAgentShooterEnv(gym.Env):
 
         reward1 = dmg1_dealt - dmg1_taken - 0.005
         reward2 = dmg1_taken - dmg1_dealt - 0.005
-
-        a1, a2 = self.p1.ammo, self.p2.ammo
-        prev_a1, prev_a2 = self._prev_ammo
-        reward1 -= 0.05 * max(0, prev_a1 - a1)
-        reward2 -= 0.05 * max(0, prev_a2 - a2)
-        self._prev_ammo = [a1, a2]
 
         dist_norm1 = obs[0][73]
         dist_norm2 = obs[1][73]

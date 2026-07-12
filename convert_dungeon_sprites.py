@@ -19,6 +19,8 @@ from PIL import Image
 
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
 SRC_DIR = os.path.join(os.path.dirname(__file__), "dungeonSprites_v1.5", "dungeonSprites_ v1.5")
+if not os.path.isdir(SRC_DIR):
+    SRC_DIR = os.path.join(os.path.dirname(__file__), "dungeonSprites_ v1.5")
 TILE_OUT = 128  # engine tile size (matches generate_placeholder_textures.py)
 
 # Character sprite: 24x24 native tiles
@@ -60,13 +62,13 @@ ANIM_MAP = {
     2: ["dash"],
     3: [],
     4: ["hurt"],
-    5: [],
+    5: ["death"],
 }
 
 ANIM_FRAMES = 4  # each direction has 4 frames in source
 
 # Engine animation suffixes order
-ENGINE_ANIMS = ["idle", "walk", "run", "cast", "slash", "slash2", "slash3", "hurt", "dash"]
+ENGINE_ANIMS = ["idle", "walk", "run", "cast", "slash", "slash2", "slash3", "hurt", "dash", "death"]
 # For animations without a source, copy from a fallback
 FALLBACK_MAP = {
     "cast":   "idle",
