@@ -308,6 +308,12 @@ std::array<float, obs_dim> Engine::observe(const Player& self, const Player& ene
 
     obs[i++] = self.is_attacking ? 1.0f : 0.0f;
     obs[i++] = static_cast<float>(self.combo_stage) / max_combo_stage;
+    
+    obs[i++] = enemy.is_attacking ? 1.0f : 0.0f;
+    obs[i++] = static_cast<float>(enemy.combo_stage) / max_combo_stage;
+    obs[i++] = enemy.is_dashing ? 1.0f : 0.0f;
+    obs[i++] = enemy.stun_timer > 0.0f ? 1.0f : 0.0f;
+    obs[i++] = static_cast<float>(static_cast<int>(enemy.equipment.weapon)) / weapon_count;
 
     obs[i++] = self.stats.strength / max_stat_value;
     obs[i++] = self.stats.vitality / max_stat_value;

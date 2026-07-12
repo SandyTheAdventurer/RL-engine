@@ -111,7 +111,7 @@ inline constexpr float melee_stamina_cost = 20.0f;
 inline constexpr float default_stat_value = 10.0f;
 inline constexpr float max_stat_value = 99.0f;
 inline constexpr float fire_stamina_cost = 10.0f;
-inline constexpr int obs_dim = 83;
+inline constexpr int obs_dim = 88;
 inline constexpr int qm_obs_dim = 64;
 
 inline constexpr float qm_dimes_normalizer = 500.0f;
