@@ -15,6 +15,7 @@ find_package(SDL3_ttf REQUIRED)
 find_package(SDL3_mixer REQUIRED)
 set(PYBIND11_FINDPYTHON ON)
 find_package(pybind11 CONFIG REQUIRED)
+find_package(OpenMP REQUIRED)
 
 add_library(rlengine STATIC
     src/Engine.cpp
@@ -37,7 +38,8 @@ target_link_libraries(rlengine PUBLIC
     SDL3_image::SDL3_image 
     SDL3_ttf::SDL3_ttf
     SDL3_mixer::SDL3_mixer
+    OpenMP::OpenMP_CXX
 )
 
-pybind11_add_module(Game src/bindings.cpp)
+pybind11_add_module(Game src/bindings.cpp src/MultiEngine.cpp)
 target_link_libraries(Game PRIVATE rlengine)

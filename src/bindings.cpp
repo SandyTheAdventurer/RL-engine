@@ -8,6 +8,7 @@
 #include "Equipment.h"
 #include "Spell.h"
 #include "Economy.h"
+#include "MultiEngine.h"
 
 namespace py = pybind11;
 
@@ -146,8 +147,8 @@ PYBIND11_MODULE(Game, m) {
         .def_property_readonly("weapon", [](Player& p) { return p.equipment.weapon; })
         .def_readonly("equip_load_ratio", &Player::equip_load_ratio)
         .def_readwrite("dimes", &Player::dimes)
-        .def_property_readonly("px", [](Player& p) { return p.box.x; })
-        .def_property_readonly("py", [](Player& p) { return p.box.y; })
+        .def_property_readonly("px", [](Player& p) { return p.box.x + p.box.w / 2; })
+        .def_property_readonly("py", [](Player& p) { return p.box.y + p.box.h / 2; })
         .def_property_readonly("weapon_upgrade_levels", [](Player& p) {
             return std::vector<int>(p.weapon_upgrade_levels, p.weapon_upgrade_levels + weapon_count);
         })
@@ -215,4 +216,13 @@ PYBIND11_MODULE(Game, m) {
 
     m.def("poll_events", &pollEvents);
     m.def("get_human_intent", &getHumanIntent);
+    
+    py::class_<MultiEngine>(m, "MultiEngine")
+        .def(py::init<int, int, float, float, float, float, float, float, int, int>(),
+             py::arg("num_envs"), py::arg("frame_skip"),
+             py::arg("p1_x"), py::arg("p1_y"), py::arg("p1_speed"),
+             py::arg("p2_x"), py::arg("p2_y"), py::arg("p2_speed"),
+             py::arg("screenw"), py::arg("screenh"))
+        .def("reset", &MultiEngine::reset)
+        .def("step", &MultiEngine::step, py::arg("p1_actions"), py::arg("p2_actions"), py::arg("dt"));
 }
