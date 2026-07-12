@@ -4,7 +4,7 @@
 #include <utility>
 #include <SDL3/SDL.h>
 #include "Structures.h"
-#include "Bullet.h"
+#include "Spell.h"
 #include "Constants.h"
 #include "Stats.h"
 #include "Stamina.h"
@@ -14,8 +14,16 @@ struct Weapon {
     SDL_Texture* texture = nullptr;
     float angle = 0.0f;
     bool is_swinging = false;
-    int combo_step = 1;
     float swing_timer = 0.0f;
+};
+
+struct DashTrail {
+    float x = 0, y = 0;
+    std::pair<int, int> direction = {0, 1};
+    int texture_state = 0;
+    int animation_index = 0;
+    float life = 0.0f;
+    float max_life = 0.0f;
 };
 
 class Player {
@@ -44,20 +52,28 @@ class Player {
     float speed;
     float vx = 0, vy = 0;
     float health = max_health;
-    int ammo = max_ammo;
-    bool is_reloading = false;
-    float reload_timer = 0.0f;
+    float mana = 0;
+    float max_mana = 0;
+    float mana_regen = 0;
+    float spell_cooldown_timers[4] = {};
+    std::array<SpellProjectile, max_projectiles> projectiles;
+
     SDL_FRect box;
     SDL_FRect hitbox;
-    std::array<Bullet, max_bullets / 2> bullets;
 
     bool is_attacking = false;
     bool hit_this_swing = false;
+    bool trigger_aoe_tremor = false;
+    bool trigger_cast_vfx = false;
+    float cast_vfx_angle = 0.0f;
     int combo_stage = 0;
-    SDL_FRect melee_hitbox{0,0,0,0};
+    bool dead = false;
+    float death_timer = 0.0f;
     float attack_cooldown_timer = 0.0f;
     float combo_timer = 0.0f;
     float hurt_timer = 0.0f;
+    float slow_timer = 0.0f;
+    float stun_timer = 0.0f;
     float melee_angle = 0.0f;
 
     PlayerStats stats;
@@ -65,9 +81,33 @@ class Player {
     Loadout equipment;
     float max_hp;
     float equip_load_ratio;
+    float damage_flash = 0.0f;
+    float damage_taken = 0.0f;
+
+    float bleed_timer = 0.0f;
+    float bleed_dps = 0.0f;
+
+    static constexpr int max_dash_trails = 10;
+    DashTrail dash_trails[max_dash_trails];
+    int next_dash_trail_idx = 0;
+    float dash_trail_timer = 0.0f;
+
+    float dimes = 0.0f;
+    bool owned_weapons[weapon_count] = {true, false, false, false, false};
+    int weapon_upgrade_levels[weapon_count] = {};
+    int armor_upgrade_levels[3] = {};
+
+    bool is_weapon_owned(WeaponType type) const;
+    bool can_afford(float cost) const;
+    bool purchase_stat_upgrade(StatType type);
+    bool purchase_weapon(WeaponType type);
+    bool equip_weapon(WeaponType type);
+    bool purchase_weapon_upgrade(int weapon_index);
+    bool purchase_armor_upgrade(ArmorSlot slot);
 
     void load_texture(AnimationState state, SDL_Texture* tex);
     void load_weapon_texture(SDL_Texture* tex);
+    void equip_weapon_texture(SDL_Renderer* renderer, const char* tex_file);
 
     private:
     void advanceFrame(float dt);

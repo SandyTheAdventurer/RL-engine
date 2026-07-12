@@ -8,35 +8,13 @@ PlayerIntent getHumanIntent(const FrameInput& input) {
     intent.attack = input.mouse_left_clicked;
     intent.fire = input.mouse_right_clicked;
     intent.dash = (keys[SDL_SCANCODE_LSHIFT]);
-    intent.reload = (keys[SDL_SCANCODE_R]);
     intent.aim_x = input.mouse_x;
     intent.aim_y = input.mouse_y;
-    return intent;
-}
 
-PlayerIntent getBotIntent(SDL_Gamepad* ctrl, const SDL_FRect& bot_box, bool& prev_fire_btn) {
-    PlayerIntent intent;
-    if (!ctrl) return intent;
-
-    float ax = SDL_GetGamepadAxis(ctrl, SDL_GAMEPAD_AXIS_LEFTX);
-    float ay = SDL_GetGamepadAxis(ctrl, SDL_GAMEPAD_AXIS_LEFTY);
-    intent.mx = (ax > 16384) ? 1 : (ax < -16384) ? -1 : 0;
-    intent.my = (ay > 16384) ? 1 : (ay < -16384) ? -1 : 0;
-
-    float rx = SDL_GetGamepadAxis(ctrl, SDL_GAMEPAD_AXIS_RIGHTX);
-    float ry = SDL_GetGamepadAxis(ctrl, SDL_GAMEPAD_AXIS_RIGHTY);
-    bool aim_valid = (rx > 16384 || rx < -16384 || ry > 16384 || ry < -16384);
-
-    if (aim_valid) {
-        float bot_cx = bot_box.x + playerw / 2.0f;
-        float bot_cy = bot_box.y + playerh / 2.0f;
-        intent.aim_x = bot_cx + (rx / 32767.0f) * 500.0f;
-        intent.aim_y = bot_cy + (ry / 32767.0f) * 500.0f;
-    }
-
-    bool btn = SDL_GetGamepadButton(ctrl, SDL_GAMEPAD_BUTTON_SOUTH);
-    intent.fire = btn && !prev_fire_btn && aim_valid;
-    prev_fire_btn = btn;
+    if (keys[SDL_SCANCODE_1]) intent.selected_spell = 0;
+    else if (keys[SDL_SCANCODE_2]) intent.selected_spell = 1;
+    else if (keys[SDL_SCANCODE_3]) intent.selected_spell = 2;
+    else if (keys[SDL_SCANCODE_4]) intent.selected_spell = 3;
 
     return intent;
 }

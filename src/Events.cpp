@@ -8,14 +8,14 @@ FrameInput pollEvents() {
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_EVENT_QUIT)
             input.quit = true;
+        else if (event.type == SDL_EVENT_KEY_DOWN)
+            input.pressed_key = event.key.scancode;
         else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
         {
-            if(event.button.button == SDL_BUTTON_LEFT) {
+            if(event.button.button == SDL_BUTTON_LEFT)
                 input.mouse_left_clicked = true;
-            }
-            if(event.button.button == SDL_BUTTON_RIGHT) {
+            if(event.button.button == SDL_BUTTON_RIGHT)
                 input.mouse_right_clicked = true;
-            }
         }
     }
     return input;

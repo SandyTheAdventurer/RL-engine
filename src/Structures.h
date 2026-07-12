@@ -12,5 +12,4 @@ struct Spritesheet
     Spritesheet(int tile_size, int cols);
 
     SDL_FRect getSrc(int row, int col) const;
-    std::pair<int,int> getIndex(float x, float y) const;
 };

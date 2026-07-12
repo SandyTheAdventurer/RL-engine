@@ -12,6 +12,7 @@ endif()
 find_package(SDL3 REQUIRED)
 find_package(SDL3_image REQUIRED)
 find_package(SDL3_ttf REQUIRED)
+find_package(SDL3_mixer REQUIRED)
 set(PYBIND11_FINDPYTHON ON)
 find_package(pybind11 CONFIG REQUIRED)
 
@@ -19,7 +20,7 @@ add_library(rlengine STATIC
     src/Engine.cpp
     src/Visuals.cpp
     src/Player.cpp
-    src/Bullet.cpp
+    src/Spell.cpp
     src/Collision.cpp
     src/Input.cpp
     src/Events.cpp
@@ -27,12 +28,15 @@ add_library(rlengine STATIC
     src/Stats.cpp
     src/Stamina.cpp
     src/Equipment.cpp
+    src/Economy.cpp
+    src/Audio.cpp
 )
 target_include_directories(rlengine PUBLIC src)
 target_link_libraries(rlengine PUBLIC 
     SDL3::SDL3 
     SDL3_image::SDL3_image 
     SDL3_ttf::SDL3_ttf
+    SDL3_mixer::SDL3_mixer
 )
 
 pybind11_add_module(Game src/bindings.cpp)
