@@ -83,6 +83,8 @@ class Player {
     float equip_load_ratio;
     float damage_flash = 0.0f;
     float damage_taken = 0.0f;
+    float damage_dealt_step = 0.0f;
+    float damage_taken_step = 0.0f;
 
     float bleed_timer = 0.0f;
     float bleed_dps = 0.0f;

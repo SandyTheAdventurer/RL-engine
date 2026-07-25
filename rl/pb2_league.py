@@ -1,11 +1,52 @@
+import logging
 import optuna
 import numpy as np
 import copy
-import torch
 import random
+import torch
 from rl.gail import GAIL
-from rl.env import EngineEnv, sys_config
 from rl.vec_env import MultiEngineEnv
+from rl.config import gen_lr_range, disc_lr_range
+
+logger = logging.getLogger("rl.pb2")
+
+class PB2Agent:
+    def __init__(self, agent_id, num_envs, device, trial):
+        self.id = agent_id
+        self.env = MultiEngineEnv(num_envs=num_envs)
+        self.gail = GAIL(self.env, boss_dir=None, device=device)
+        self.trial = trial
+        glr_min, glr_max = gen_lr_range()
+        dlr_min, dlr_max = disc_lr_range()
+        self.gen_lr = self.trial.suggest_float("gen_lr", glr_min, glr_max, log=True)
+        self.disc_lr = self.trial.suggest_float("disc_lr", dlr_min, dlr_max, log=True)
+        self.score = 0.0
+        self.persistent_state = None
+
+    def init_persistent_states(self, device, num_envs):
+        obs, _ = self.env.reset()
+        done = np.zeros(num_envs, dtype=bool)
+        gen_lstm = (
+            torch.zeros(self.gail.generator.lstm.num_layers, num_envs, self.gail.generator.lstm.hidden_size).to(device),
+            torch.zeros(self.gail.generator.lstm.num_layers, num_envs, self.gail.generator.lstm.hidden_size).to(device),
+        )
+        boss_lstm = (
+            torch.zeros(self.gail.boss.lstm.num_layers, num_envs, self.gail.boss.lstm.hidden_size).to(device),
+            torch.zeros(self.gail.boss.lstm.num_layers, num_envs, self.gail.boss.lstm.hidden_size).to(device),
+        )
+        disc_lstm = (
+            torch.zeros(1, num_envs, self.gail.discriminator.lstm.hidden_size).to(device),
+            torch.zeros(1, num_envs, self.gail.discriminator.lstm.hidden_size).to(device),
+        )
+        self.persistent_state = (obs, done, gen_lstm, boss_lstm, disc_lstm)
+
+    def get_states(self, device, num_envs):
+        if self.persistent_state is None:
+            self.init_persistent_states(device, num_envs)
+        return self.persistent_state
+
+    def save_states(self, obs, done, gen_lstm, boss_lstm, disc_lstm):
+        self.persistent_state = (obs, done, gen_lstm, boss_lstm, disc_lstm)
 
 class PB2League:
     def __init__(self, pop_size, num_envs, device):
@@ -17,17 +58,9 @@ class PB2League:
         self.study = optuna.create_study(direction="maximize")
         self.population = []
         
-        print(f"Initializing PB2 League with {pop_size} agents...")
+        logger.info("Initializing PB2 League with %d agents...", pop_size)
         for i in range(pop_size):
-            agent = type("Agent", (object,), {})()
-            agent.id = i
-            agent.env = MultiEngineEnv(num_envs=num_envs, frame_skip=4)
-            agent.gail = GAIL(agent.env, boss_dir=None, device=device)
-            
-            agent.trial = self.study.ask()
-            agent.gen_lr = agent.trial.suggest_float("gen_lr", 1e-5, 1e-3, log=True)
-            agent.disc_lr = agent.trial.suggest_float("disc_lr", 1e-5, 1e-3, log=True)
-            agent.score = 0.0
+            agent = PB2Agent(i, num_envs, device, self.study.ask())
             self.population.append(agent)
 
     def get_champion(self):
@@ -40,8 +73,10 @@ class PB2League:
                 param_group['lr'] = agent.gen_lr
             for param_group in agent.gail.discriminator.optim.param_groups: 
                 param_group['lr'] = agent.disc_lr
+            for param_group in agent.gail.boss_optimizer.param_groups:
+                param_group['lr'] = agent.gen_lr
 
-    def evolve(self):
+    def evolve(self, cycle_num=None):
 
         for agent in self.population:
             self.study.tell(agent.trial, agent.score)
@@ -52,7 +87,7 @@ class PB2League:
         top_agents = self.population[:cutoff]
         bottom_agents = self.population[cutoff:]
         
-        print(f"\n--- EVOLUTION RESULTS ---")
+        logger.info("--- EVOLUTION RESULTS (Cycle %s) ---", cycle_num)
         
 
         for agent in top_agents:
@@ -63,14 +98,18 @@ class PB2League:
 
         for bottom in bottom_agents:
             top = random.choice(top_agents)
-            print(f"Agent {bottom.id} (Score {bottom.score:.2f}) was killed. Replaced by Agent {top.id} (Score {top.score:.2f})!")
+            logger.info("Agent %d (Score %.2f) killed, replaced by Agent %d (Score %.2f)", bottom.id, bottom.score, top.id, top.score)
             
 
             bottom.gail.generator.load_state_dict(copy.deepcopy(top.gail.generator.state_dict()))
             bottom.gail.boss.load_state_dict(copy.deepcopy(top.gail.boss.state_dict()))
             bottom.gail.discriminator.load_state_dict(copy.deepcopy(top.gail.discriminator.state_dict()))
             bottom.gail.gen_optimizer.load_state_dict(copy.deepcopy(top.gail.gen_optimizer.state_dict()))
+            bottom.gail.boss_optimizer.load_state_dict(copy.deepcopy(top.gail.boss_optimizer.state_dict()))
             bottom.gail.discriminator.optim.load_state_dict(copy.deepcopy(top.gail.discriminator.optim.state_dict()))
+            bottom.gail.load_normalizer(copy.deepcopy(top.gail.save_normalizer()))
+            
+            bottom.persistent_state = copy.deepcopy(top.persistent_state)
             
 
             bottom.trial = self.study.ask()

@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.optim as optim
 from torch.distributions.categorical import Categorical
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
@@ -133,16 +132,13 @@ class PPO(nn.Module):
         with torch.no_grad():
             next_value = self.get_value(next_obs, next_lstm_state, next_done).view(-1)
             advantages = torch.zeros_like(self.rewards_buf).to(self.device)
+            nextnonterminal = torch.cat([1.0 - self.dones_buf[1:], (1.0 - next_done).unsqueeze(0)])
+            nextvalues = torch.cat([self.values_buf[1:], next_value.unsqueeze(0)])
+            deltas = self.rewards_buf + args.gamma * nextvalues * nextnonterminal - self.values_buf
+            
             lastgaelam = 0
             for t in reversed(range(args.num_steps)):
-                if t == args.num_steps - 1:
-                    nextnonterminal = 1.0 - next_done
-                    nextvalues = next_value
-                else:
-                    nextnonterminal = 1.0 - self.dones_buf[t + 1]
-                    nextvalues = self.values_buf[t + 1]
-                delta = self.rewards_buf[t] + args.gamma * nextvalues * nextnonterminal - self.values_buf[t]
-                advantages[t] = lastgaelam = delta + args.gamma * args.gae_lambda * nextnonterminal * lastgaelam
+                advantages[t] = lastgaelam = deltas[t] + args.gamma * args.gae_lambda * nextnonterminal[t] * lastgaelam
             returns = advantages + self.values_buf
 
         b_obs = self.obs_buf.reshape((-1, self.obs_buf.shape[-1]))
@@ -175,7 +171,6 @@ class PPO(nn.Module):
                 ratio = logratio.exp()
 
                 with torch.no_grad():
-                    old_approx_kl = (-logratio).mean()
                     approx_kl = ((ratio - 1) - logratio).mean()
                     clipfracs += [((ratio - 1.0).abs() > args.clip_coef).float().mean().item()]
 
@@ -214,15 +209,17 @@ class PPO(nn.Module):
 
         self.step_idx = 0
 
+        var_y = torch.var(b_returns)
+        explained_var = np.nan if var_y == 0 else (1 - torch.var(b_returns - b_values) / var_y).item()
+
         return {
             "v_loss": v_loss.item(),
             "pg_loss": pg_loss.item(),
             "entropy_loss": entropy_loss.item(),
-            "approx_kl": approx_kl.item()
+            "approx_kl": approx_kl.item(),
+            "clipfrac": np.mean(clipfracs),
+            "explained_var": explained_var,
         }
-
-    def save(self, path):
-        torch.save(self.state_dict(), path)
 
     def load(self, path, device="cpu"):
         self.load_state_dict(torch.load(path, map_location=device, weights_only=True))

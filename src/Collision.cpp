@@ -77,6 +77,8 @@ void check_melee_collision(Player* p1, Player* p2, Engine* engine) {
                 target->health -= dmg;
                 target->hurt_timer = hurt_flash_duration;
                 target->damage_taken = dmg;
+                target->damage_taken_step += dmg;
+                attacker->damage_dealt_step += dmg;
                 target->damage_flash = 1.5f;
                 target->stun_timer = 0.5f;
                 if (engine) engine->push_vfx(cx, cy, 30, ParticleType::Blood, {136, 8, 8, 255});
@@ -105,6 +107,8 @@ void check_melee_collision(Player* p1, Player* p2, Engine* engine) {
             p2->health -= dmg;
             p2->hurt_timer = hurt_flash_duration;
             p2->damage_taken = dmg;
+            p2->damage_taken_step += dmg;
+            p1->damage_dealt_step += dmg;
             p2->damage_flash = 1.5f;
             p1->hit_this_swing = true;
             if (wp.type == WeaponType::Daggers) {
@@ -137,6 +141,8 @@ void check_melee_collision(Player* p1, Player* p2, Engine* engine) {
             p1->health -= dmg;
             p1->hurt_timer = hurt_flash_duration;
             p1->damage_taken = dmg;
+            p1->damage_taken_step += dmg;
+            p2->damage_dealt_step += dmg;
             p1->damage_flash = 1.5f;
             p2->hit_this_swing = true;
             if (wp.type == WeaponType::Daggers) {
@@ -160,6 +166,8 @@ static void apply_spell_damage(Player* caster, Player* target, const SpellProfil
     target->health -= dmg;
     target->hurt_timer = hurt_flash_duration;
     target->damage_taken = dmg;
+    target->damage_taken_step += dmg;
+    caster->damage_dealt_step += dmg;
     target->damage_flash = 1.5f;
 
     if (sp.effect == SpellEffect::Slow)

@@ -1,21 +1,23 @@
 import numpy as np
-from rl.env import sys_config, OBS_DIM, AIM_DIRECTIONS
-from build.Game import MultiEngine
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'build')))
+from Game import MultiEngine
 from gymnasium import spaces
 import functools
+from rl.config import aim_directions, frame_skip as cfg_frame_skip
+
+OBS_DIM = 88
 
 class MultiEngineEnv:
-    def __init__(self, num_envs, frame_skip=4):
+    def __init__(self, num_envs, frame_skip=None):
         self.num_envs = num_envs
-        self.frame_skip = frame_skip
+        self.frame_skip = frame_skip if frame_skip is not None else cfg_frame_skip()
         self.agents = ["player", "boss"]
-        
-        self.engine = MultiEngine(
-            num_envs, frame_skip,
-            sys_config["p1_init_x"], sys_config["p1_init_y"], sys_config["p1_init_speed"],
-            sys_config["p2_init_x"], sys_config["p2_init_y"], sys_config["p2_init_speed"],
-            sys_config["screenw"], sys_config["screenh"]
-        )
+
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json")
+        self.engine = MultiEngine(config_path)
+        self.engine.init_engines(num_envs)
 
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
@@ -23,7 +25,7 @@ class MultiEngineEnv:
         
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
-        return spaces.MultiDiscrete([3, 3, 2, 2, 2, AIM_DIRECTIONS, 2])
+        return spaces.MultiDiscrete([3, 3, 2, 2, 2, aim_directions(), 2])
         
     def reset(self):
         obs_dict, _ = self.engine.reset()
