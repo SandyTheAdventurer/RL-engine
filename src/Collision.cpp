@@ -187,9 +187,14 @@ void check_spell_collision(Player* caster, Player* target, Engine* engine) {
         const SpellProfile& sp = get_spell_profile(p.type);
 
         if (sp.speed <= 0.0f) {
-            apply_spell_damage(caster, target, sp, engine);
+            SDL_FRect strike = p.hitbox;
+            float pad = 40.0f;
+            strike.x -= pad; strike.y -= pad;
+            strike.w += 2 * pad; strike.h += 2 * pad;
+            if (aabb(strike, target->hitbox))
+                apply_spell_damage(caster, target, sp, engine);
             p.active = false;
-            break;
+            continue;
         }
 
         if (aabb(p.hitbox, target->hitbox)) {

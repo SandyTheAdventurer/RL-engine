@@ -9,6 +9,12 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Multi-config generators (MSVC) ignore CMAKE_BUILD_TYPE and default to Debug,
+# which makes the simulation 10-50x slower; restrict to optimized configs.
+if(CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_CONFIGURATION_TYPES "Release;RelWithDebInfo" CACHE STRING "" FORCE)
+endif()
+
 if(NOT DEFINED SDL3_DIR AND EXISTS "/usr/lib/cmake/SDL3")
     set(SDL3_DIR /usr/lib/cmake/SDL3)
 endif()
@@ -19,7 +25,10 @@ find_package(SDL3_ttf REQUIRED)
 find_package(SDL3_mixer REQUIRED)
 set(PYBIND11_FINDPYTHON ON)
 find_package(pybind11 CONFIG REQUIRED)
-find_package(OpenMP REQUIRED)
+# No OpenMP: PyTorch bundles its own OpenMP runtime, and loading a second one
+# (libomp on macOS, vcomp on Windows/MSVC) into the same process segfaults.
+# MultiEngine parallelizes with std::thread (src/ParallelFor.h) instead.
+find_package(Threads REQUIRED)
 
 add_library(rlengine STATIC
     src/Engine.cpp
@@ -37,12 +46,14 @@ add_library(rlengine STATIC
     src/Audio.cpp
 )
 target_include_directories(rlengine PUBLIC src)
-target_link_libraries(rlengine PUBLIC 
-    SDL3::SDL3 
-    SDL3_image::SDL3_image 
+# MSVC hides M_PI behind this define
+target_compile_definitions(rlengine PUBLIC _USE_MATH_DEFINES)
+target_link_libraries(rlengine PUBLIC
+    SDL3::SDL3
+    SDL3_image::SDL3_image
     SDL3_ttf::SDL3_ttf
     SDL3_mixer::SDL3_mixer
-    OpenMP::OpenMP_CXX
+    Threads::Threads
 )
 
 pybind11_add_module(Game src/bindings.cpp src/MultiEngine.cpp)

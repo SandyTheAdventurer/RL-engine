@@ -29,7 +29,7 @@ class DummyEnv:
     def step(self, actions):
         a = actions["player"]
         if isinstance(a, np.ndarray):
-            a = int(a[0])
+            a = int(a.ravel()[0])
 
         next_obs, reward, terminated, truncated, info = self.env.step(a)
         done = terminated or truncated

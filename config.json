@@ -7,13 +7,16 @@
 
     "frame_skip": 4,
     "test_bot": "medium",
+    "max_episode_steps": 900,
+    "win_bonus": 10.0,
 
     "num_envs": 64,
     "pop_size": 4,
     "steps_per_gen": 16384,
     "num_steps": 256,
-    "min_expert_frames": 512,
-    "max_expert_frames": 512,
+    "min_expert_frames": 128,
+    "expert_max_matches": 8,
+    "expert_max_frames": 4096,
 
     "disc_lr": 1e-4,
     "gen_lr": 2.5e-4,

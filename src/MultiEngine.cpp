@@ -1,5 +1,7 @@
 #include "MultiEngine.h"
+#include <algorithm>
 #include <cmath>
+#include <thread>
 
 MultiEngine::MultiEngine(const std::string& config_path) 
     : config(load_game_config(config_path)), num_envs(0), frame_skip(config.frame_skip) {
@@ -22,6 +24,9 @@ void init_engines(MultiEngine& me, int num_envs) {
         me.p2s.push_back(std::make_unique<Player>(p2_x, p2_y, speed, "boss"));
         me.engines.push_back(std::make_unique<Engine>(false, false, *me.p1s.back(), *me.p2s.back(), sw, sh));
     }
+    me.episode_steps.assign(num_envs, 0);
+    unsigned hw = std::thread::hardware_concurrency();
+    me.pool = std::make_unique<ParallelFor>(std::min<unsigned>(hw ? hw : 1, num_envs));
 }
 
 
@@ -31,7 +36,8 @@ PlayerIntent MultiEngine::decode_action(const float* action, const Player& p) {
     int my = static_cast<int>(action[1]) - 1;
     bool fire = action[2] > 0.5f;
     bool dash = action[3] > 0.5f;
-    int spell = action[4] > 0.5f ? 1 : 0;
+    // selected_spell 0-3; the engine's reasoning gate still clamps what fires
+    int spell = std::min(std::max(0, static_cast<int>(action[4])), 3);
     
     float angle = static_cast<int>(action[5]) * (2.0f * M_PI / static_cast<float>(config.aim_directions));
     float aim_x = p.box.x + p.box.w / 2.0f + std::cos(angle) * config.aim_radius;
@@ -50,7 +56,8 @@ py::tuple MultiEngine::reset() {
     
     for (int i = 0; i < num_envs; i++) {
         engines[i]->reset(-1.0f, -1.0f, -1.0f, -1.0f);
-        
+        episode_steps[i] = 0;
+
         auto obs1 = engines[i]->observe(*p1s[i], *p2s[i]);
         auto obs2 = engines[i]->observe(*p2s[i], *p1s[i]);
         
@@ -91,30 +98,36 @@ py::tuple MultiEngine::step(py::array_t<float> p1_actions, py::array_t<float> p2
     auto p2_dd_ptr = p2_dmg_dealt.mutable_unchecked<1>();
     auto p2_dt_ptr = p2_dmg_taken.mutable_unchecked<1>();
     
-    #pragma omp parallel for
-    for (int i = 0; i < num_envs; i++) {
+    {
+    // The loop is pure C++ on raw buffers; release the GIL so Python-side
+    // threads keep running while the pool simulates.
+    py::gil_scoped_release release;
+    pool->run(num_envs, [&](int i) {
         PlayerIntent i1 = decode_action(&p1_act_ptr(i, 0), *p1s[i]);
         PlayerIntent i2 = decode_action(&p2_act_ptr(i, 0), *p2s[i]);
-        
+
         p1s[i]->damage_dealt_step = 0.0f;
         p1s[i]->damage_taken_step = 0.0f;
         p2s[i]->damage_dealt_step = 0.0f;
         p2s[i]->damage_taken_step = 0.0f;
-        
+
         for (int f = 0; f < frame_skip; f++) {
             engines[i]->step(i1, i2, dt);
             if (engines[i]->is_done()) break;
         }
-        
-        bool done = engines[i]->is_done();
+
+        episode_steps[i]++;
+        bool terminal = engines[i]->is_done();
+        bool truncated = !terminal && episode_steps[i] >= config.max_episode_steps;
+        bool done = terminal || truncated;
         all_dones_ptr(i) = done ? 1.0f : 0.0f;
-        
+
         float time_penalty = -0.01f;
         p1_rew_ptr(i) = (p1s[i]->damage_dealt_step - p1s[i]->damage_taken_step) + time_penalty;
         p2_rew_ptr(i) = (p2s[i]->damage_dealt_step - p2s[i]->damage_taken_step) + time_penalty;
-        
-        if (done) {
-            float win_bonus = 100.0f;
+
+        if (terminal) {
+            float win_bonus = config.win_bonus;
             if (p1s[i]->health > 0 && p2s[i]->health <= 0) {
                 p1_rew_ptr(i) += win_bonus;
                 p2_rew_ptr(i) -= win_bonus;
@@ -123,25 +136,27 @@ py::tuple MultiEngine::step(py::array_t<float> p1_actions, py::array_t<float> p2
                 p1_rew_ptr(i) -= win_bonus;
             }
         }
-        
+
         p1_dd_ptr(i) = p1s[i]->damage_dealt_step;
         p1_dt_ptr(i) = p1s[i]->damage_taken_step;
         p2_dd_ptr(i) = p2s[i]->damage_dealt_step;
         p2_dt_ptr(i) = p2s[i]->damage_taken_step;
-        
+
         if (done) {
             engines[i]->reset(-1.0f, -1.0f, -1.0f, -1.0f);
+            episode_steps[i] = 0;
         }
-        
+
         auto obs1 = engines[i]->observe(*p1s[i], *p2s[i]);
         auto obs2 = engines[i]->observe(*p2s[i], *p1s[i]);
-        
+
         for (int j = 0; j < obs_dim; j++) {
             p1_obs_ptr(i, j) = obs1[j];
             p2_obs_ptr(i, j) = obs2[j];
         }
+    });
     }
-    
+
     py::dict obs_dict;
     obs_dict["player"] = p1_obs;
     obs_dict["boss"] = p2_obs;

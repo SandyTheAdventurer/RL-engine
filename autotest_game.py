@@ -7,10 +7,14 @@ from rl.env import EngineEnv, sys_config
 from rl.config import setup_logging, init_mlflow, end_mlflow, log_metrics, encode_human_intent
 from rl.gail import GAILArgs
 from rl.bots import BOTS
-from rl.config import num_envs as cfg_num_envs, pop_size as cfg_pop_size, steps_per_gen as cfg_steps_per_gen, num_steps as cfg_num_steps, min_expert_frames, max_expert_frames, test_bot
+from rl.config import num_envs as cfg_num_envs, pop_size as cfg_pop_size, steps_per_gen as cfg_steps_per_gen, num_steps as cfg_num_steps, min_expert_frames, expert_max_matches, expert_max_frames, test_bot
+from rl.expert_buffer import ExpertBuffer
 from Game import PlayerIntent
 
-torch.set_num_threads(1)
+import os
+# Torch intra-op threads alternate with the engine's OpenMP threads (never
+# concurrent), so torch can use half the cores without oversubscribing.
+torch.set_num_threads(max(1, (os.cpu_count() or 2) // 2))
 
 logger = logging.getLogger("rl.autotest")
 
@@ -28,8 +32,7 @@ def main():
 
     league = PB2League(pop_size=cfg_pop_size(), num_envs=cfg_num_envs(), device=device)
 
-    global_expert_obs = []
-    global_expert_actions = []
+    expert_buffer = ExpertBuffer(max_matches=expert_max_matches(), max_frames=expert_max_frames())
 
     cycle_num = 1
     while True:
@@ -73,7 +76,7 @@ def main():
 
             bot_mx, bot_my, bot_fire, bot_dash, bot_spell, bot_aim_x, bot_aim_y, bot_attack = bot.act(current_obs["player"], 1.0 / 60.0 * frame_skip)
             current_bot_intent = PlayerIntent(int(bot_mx), int(bot_my), bool(bot_fire), bool(bot_dash), int(bot_spell), float(bot_aim_x), float(bot_aim_y), bool(bot_attack))
-            bot_action_enc = encode_human_intent(current_bot_intent, render_env.p1)
+            bot_action_enc = encode_human_intent(current_bot_intent, render_env.p1.px, render_env.p1.py)
 
             cycle_expert_obs.append(current_obs["player"])
             cycle_expert_actions.append(bot_action_enc)
@@ -96,25 +99,20 @@ def main():
             "eval/distance_to_opponent": math.sqrt(dx * dx + dy * dy),
         }, step=cycle_num)
 
-        global_expert_obs.extend(cycle_expert_obs)
-        global_expert_actions.extend(cycle_expert_actions)
-        if len(global_expert_obs) > max_expert_frames():
-            global_expert_obs = global_expert_obs[-max_expert_frames():]
-            global_expert_actions = global_expert_actions[-max_expert_frames():]
+        expert_buffer.add_match(cycle_expert_obs, cycle_expert_actions)
 
-        logger.info("Collected %d frames of expert data (total: %d)", len(cycle_expert_obs), len(global_expert_obs))
+        logger.info("Collected %d frames of expert data (total: %d)", len(cycle_expert_obs), len(expert_buffer))
 
-        if len(global_expert_obs) < min_expert_frames():
+        if len(expert_buffer) < min_expert_frames():
             logger.warning(
                 "Not enough expert data (%d < %d), skipping training this cycle",
-                len(global_expert_obs), min_expert_frames(),
+                len(expert_buffer), min_expert_frames(),
             )
             cycle_num += 1
             continue
 
 
-        obs_np = np.array(global_expert_obs)
-        act_np = np.array(global_expert_actions)
+        obs_np, act_np, dones_np = expert_buffer.arrays()
 
         league.apply_learning_rates()
 
@@ -125,20 +123,27 @@ def main():
 
         # --- PHASE 2: Train all generators (GAIL) ---
         logger.info("PHASE 2: Training generators")
+
+        # One shared judge for the whole population: per-agent discriminator
+        # scores are not comparable (a weak discriminator inflates its own
+        # agent's score, so evolution would select for bad discriminators).
+        ref_disc = champion.gail.discriminator
+
         for agent in league.population:
             agent.gail.env = agent.env
             num_envs = agent.env.num_envs
             persistent_state = agent.get_states(device, num_envs)
-            gen_score, gen_damage, persistent_state = agent.gail.train(act_np, obs_np, total_timesteps=cfg_steps_per_gen(), persistent_state=persistent_state)
+            gen_score, gen_damage, persistent_state = agent.gail.train(act_np, obs_np, total_timesteps=cfg_steps_per_gen(), persistent_state=persistent_state, expert_dones=dones_np)
 
-            # Re-reset env — gail.train() left it in an arbitrary state
+            agent.score = agent.gail.evaluate_generator(ref_disc)
+
+            # Re-reset env — train()/evaluate_generator() left it in an arbitrary state
             obs, _ = agent.env.reset()
             done = np.zeros(num_envs, dtype=bool)
             persistent_state = (obs, done, persistent_state[2], persistent_state[3], persistent_state[4])
             agent.save_states(*persistent_state)
 
-            agent.score = gen_score
-            logger.info("Agent %d generator score: %.4f | damage: %.2f", agent.id, gen_score, gen_damage)
+            logger.info("Agent %d score: %.4f (own-disc: %.4f) | damage: %.2f", agent.id, agent.score, gen_score, gen_damage)
             log_metrics({f"train/agent_{agent.id}_gen_damage": gen_damage}, step=cycle_num)
 
         # --- PHASE 3: Train champion's boss PPO ---

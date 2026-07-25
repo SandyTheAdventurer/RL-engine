@@ -51,11 +51,6 @@ void Player::move(float dt, PlayerIntent intent) {
     if (slow_timer > 0)
         slow_timer = std::fmax(0.0f, slow_timer - dt);
 
-    if (bleed_timer > 0.0f) {
-        bleed_timer -= dt;
-        health -= bleed_dps * dt;
-    }
-
     if (dead) {
         int death_frames = sprite_frame_counts[static_cast<int>(AnimationState::Death)];
         if (anim_timer >= death_spritechange) {
@@ -245,7 +240,16 @@ void Player::move(float dt, PlayerIntent intent) {
                 dummy.active = true;
                 dummy.speed = 0.0f;
                 float p_size = 20.0f;
-                dummy.hitbox = {cx - p_size / 2.0f, cy - p_size / 2.0f, p_size, p_size};
+                // Instant strike lands at the aim point, capped to max range;
+                // collision then requires the target near the strike point.
+                float aim_dist = std::sqrt(aim_dx * aim_dx + aim_dy * aim_dy);
+                float range = std::min(aim_dist, 300.0f);
+                float sx = cx, sy = cy;
+                if (aim_dist > 1.0f) {
+                    sx = cx + aim_dx / aim_dist * range;
+                    sy = cy + aim_dy / aim_dist * range;
+                }
+                dummy.hitbox = {sx - p_size / 2.0f, sy - p_size / 2.0f, p_size, p_size};
                 dummy.vx = 0; dummy.vy = 0;
                 for (auto& p : projectiles) {
                     if (!p.active) { p = dummy; break; }
