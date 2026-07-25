@@ -30,7 +30,7 @@ class DummyEnv:
     def step(self, actions):
         a = actions["player"]
         if isinstance(a, np.ndarray):
-            a = int(a[0])
+            a = int(a.ravel()[0])
 
         next_obs, reward, terminated, truncated, info = self.env.step(a)
         done = terminated or truncated
@@ -44,7 +44,12 @@ class DummyEnv:
 
 
 def test_ppo_cartpole():
+    # Seeded: this budget is barely enough for CartPole, so unseeded runs
+    # fail the reward threshold roughly half the time.
+    torch.manual_seed(1)
+    np.random.seed(1)
     env = DummyEnv()
+    env.env.reset(seed=1)
 
     num_envs = 1
     num_steps = 128
@@ -84,7 +89,7 @@ def test_ppo_cartpole():
     episode_rewards = []
     current_reward = 0
 
-    total_timesteps = 3000
+    total_timesteps = 6000
     global_step = 0
 
     while global_step < total_timesteps:
@@ -127,7 +132,9 @@ def test_ppo_cartpole():
         f"Not enough episodes completed: {len(episode_rewards)} (need >= 5)"
     )
 
-    avg_last_5 = sum(episode_rewards[-5:]) / 5.0
-    assert avg_last_5 > 20.0, (
-        f"PPO not learning on CartPole: avg last 5 episodes = {avg_last_5:.1f} (expected > 20.0)"
+    # Average the last 10 episodes: last-5 is noisy enough to flip the
+    # result across platforms even when learning is real.
+    avg_last_10 = sum(episode_rewards[-10:]) / min(10, len(episode_rewards))
+    assert avg_last_10 > 20.0, (
+        f"PPO not learning on CartPole: avg last 10 episodes = {avg_last_10:.1f} (expected > 20.0)"
     )

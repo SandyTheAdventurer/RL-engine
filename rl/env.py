@@ -2,16 +2,17 @@ import functools
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'build')))
+import Game
 from Game import Engine, Player, PlayerIntent
 from gymnasium import spaces
 import numpy as np
 from pettingzoo.utils.env import ParallelEnv
-from rl.config import screenw, screenh, playerspeed, aim_directions, aim_radius, frame_skip as _cfg_frame_skip
+from rl.config import screenw, screenh, playerspeed, aim_directions, aim_radius, frame_skip as _cfg_frame_skip, win_bonus as _cfg_win_bonus
 
 ENGINE_DT = 1.0 / 60.0
-OBS_DIM = 88
+OBS_DIM = Game.obs_dim
 TIME_PENALTY = -0.01
-WIN_BONUS = 100.0
+WIN_BONUS = _cfg_win_bonus()
 
 def make_sys_config():
     sw, sh, sp = screenw(), screenh(), playerspeed()
@@ -47,18 +48,19 @@ class EngineEnv(ParallelEnv):
     
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
-        return spaces.MultiDiscrete([3, 3, 2, 2, 2, aim_directions(), 2])
-    
+        return spaces.MultiDiscrete([3, 3, 2, 2, 4, aim_directions(), 2])
+
     def _get_obs(self):
         return {"player": self.engine.observe(self.p1, self.p2),
                 "boss": self.engine.observe(self.p2, self.p1)}
-    
+
     def _decode_action(self, action, player: Player):
         mx = int(action[0]) - 1
         my = int(action[1]) - 1
         fire = bool(action[2])
         dash = bool(action[3])
-        spell = bool(action[4])
+        # selected_spell 0-3; the engine's reasoning gate still clamps what fires
+        spell = int(action[4])
         _aim_dirs = aim_directions()
         _aim_rad = aim_radius()
         angle = int(action[5]) * (2 * np.pi / _aim_dirs)

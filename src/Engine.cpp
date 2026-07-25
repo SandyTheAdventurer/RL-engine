@@ -114,6 +114,9 @@ void Engine::reset(float p1_x, float p1_y, float p2_x, float p2_y) {
     if (p2_y < 0) p2_y = (screenh - playerh) / 2.0f;
     p1.reset(p1_x, p1_y);
     p2.reset(p2_x, p2_y);
+    hit_stop_timer = 0.0f;
+    engagement.reset();
+    dropped_dimes = DroppedDimes{};
     done = false;
 }
 
@@ -144,6 +147,20 @@ void Engine::step(PlayerIntent& pi1, PlayerIntent& pi2, float dt) {
 
     p1.move(dt, a1);
     p2.move(dt, a2);
+
+    // Bleed ticks live here (not in Player::move) so the damage is credited
+    // to the opponent's damage_dealt_step for reward accounting.
+    auto tick_bleed = [dt](Player& target, Player& attacker) {
+        if (target.bleed_timer > 0.0f) {
+            target.bleed_timer -= dt;
+            float dmg = target.bleed_dps * dt;
+            target.health -= dmg;
+            target.damage_taken_step += dmg;
+            attacker.damage_dealt_step += dmg;
+        }
+    };
+    tick_bleed(p1, p2);
+    tick_bleed(p2, p1);
 
     bool hit_before = p1.hit_this_swing || p2.hit_this_swing;
     float p1_health_before = p1.health;
@@ -265,42 +282,33 @@ std::array<float, obs_dim> Engine::observe(const Player& self, const Player& ene
 
     constexpr float sentinel = 0.0f;
 
-    for (int j = 0; j < max_proj_obs; j++) {
-        const SpellProjectile& p = self.projectiles[j];
-        if (p.active && p.speed > 0.0f) {
-            float bx = p.hitbox.x + p.hitbox.w / 2.0f;
-            float by = p.hitbox.y + p.hitbox.h / 2.0f;
-            obs[i++] = 1.0f;
-            obs[i++] = (bx - self_cx) / screenw;
-            obs[i++] = (by - self_cy) / screenh;
-            obs[i++] = p.vx / proj_speed;
-            obs[i++] = p.vy / proj_speed;
-        } else {
+    // Scan every slot but report at most max_proj_obs active projectiles;
+    // active ones can live past index max_proj_obs once slots fragment.
+    auto write_projectiles = [&](const Player& owner) {
+        int written = 0;
+        for (int j = 0; j < max_projectiles && written < max_proj_obs; j++) {
+            const SpellProjectile& p = owner.projectiles[j];
+            if (p.active && p.speed > 0.0f) {
+                float bx = p.hitbox.x + p.hitbox.w / 2.0f;
+                float by = p.hitbox.y + p.hitbox.h / 2.0f;
+                obs[i++] = 1.0f;
+                obs[i++] = (bx - self_cx) / screenw;
+                obs[i++] = (by - self_cy) / screenh;
+                obs[i++] = p.vx / proj_speed;
+                obs[i++] = p.vy / proj_speed;
+                written++;
+            }
+        }
+        for (; written < max_proj_obs; written++) {
             obs[i++] = 0.0f;
             obs[i++] = sentinel;
             obs[i++] = sentinel;
             obs[i++] = sentinel;
             obs[i++] = sentinel;
         }
-    }
-    for (int j = 0; j < max_proj_obs; j++) {
-        const SpellProjectile& p = enemy.projectiles[j];
-        if (p.active && p.speed > 0.0f) {
-            float bx = p.hitbox.x + p.hitbox.w / 2.0f;
-            float by = p.hitbox.y + p.hitbox.h / 2.0f;
-            obs[i++] = 1.0f;
-            obs[i++] = (bx - self_cx) / screenw;
-            obs[i++] = (by - self_cy) / screenh;
-            obs[i++] = p.vx / proj_speed;
-            obs[i++] = p.vy / proj_speed;
-        } else {
-            obs[i++] = 0.0f;
-            obs[i++] = sentinel;
-            obs[i++] = sentinel;
-            obs[i++] = sentinel;
-            obs[i++] = sentinel;
-        }
-    }
+    };
+    write_projectiles(self);
+    write_projectiles(enemy);
 
     float dx = enemy_cx - self_cx;
     float dy = enemy_cy - self_cy;

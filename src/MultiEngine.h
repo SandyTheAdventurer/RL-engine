@@ -5,6 +5,7 @@
 #include <memory>
 #include "Engine.h"
 #include "Config.h"
+#include "ParallelFor.h"
 
 namespace py = pybind11;
 
@@ -16,6 +17,8 @@ public:
     std::vector<std::unique_ptr<Player>> p1s;
     std::vector<std::unique_ptr<Player>> p2s;
     std::vector<std::unique_ptr<Engine>> engines;
+    std::vector<int> episode_steps;
+    std::unique_ptr<ParallelFor> pool;
     
     MultiEngine(const std::string& config_path);
     
