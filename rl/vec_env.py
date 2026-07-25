@@ -2,12 +2,13 @@ import numpy as np
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'build')))
+import Game
 from Game import MultiEngine
 from gymnasium import spaces
 import functools
 from rl.config import aim_directions, frame_skip as cfg_frame_skip
 
-OBS_DIM = 88
+OBS_DIM = Game.obs_dim
 
 class MultiEngineEnv:
     def __init__(self, num_envs, frame_skip=None):
@@ -25,7 +26,7 @@ class MultiEngineEnv:
         
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
-        return spaces.MultiDiscrete([3, 3, 2, 2, 2, aim_directions(), 2])
+        return spaces.MultiDiscrete([3, 3, 2, 2, 4, aim_directions(), 2])
         
     def reset(self):
         obs_dict, _ = self.engine.reset()

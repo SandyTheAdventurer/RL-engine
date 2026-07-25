@@ -11,6 +11,8 @@ struct GameConfig {
     int aim_directions = 16;
     float aim_radius = 1000.0f;
     int frame_skip = 4;
+    int max_episode_steps = 900;
+    float win_bonus = 10.0f;
 };
 
 inline std::map<std::string, float> parse_json_flat(const std::string& path) {
@@ -73,5 +75,7 @@ inline GameConfig load_game_config(const std::string& path) {
     f("aim_directions", gc.aim_directions);
     f("aim_radius", gc.aim_radius);
     f("frame_skip", gc.frame_skip);
+    f("max_episode_steps", gc.max_episode_steps);
+    f("win_bonus", gc.win_bonus);
     return gc;
 }

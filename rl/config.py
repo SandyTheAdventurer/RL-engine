@@ -33,8 +33,11 @@ def num_envs():      return get("num_envs", 16)
 def pop_size():      return get("pop_size", 4)
 def steps_per_gen(): return get("steps_per_gen", 2048)
 def num_steps():     return get("num_steps", 64)
-def min_expert_frames(): return get("min_expert_frames", 512)
-def max_expert_frames(): return get("max_expert_frames", 512)
+def min_expert_frames(): return get("min_expert_frames", 128)
+def expert_max_matches(): return get("expert_max_matches", 8)
+def expert_max_frames(): return get("expert_max_frames", 4096)
+def win_bonus():     return get("win_bonus", 10.0)
+def max_episode_steps(): return get("max_episode_steps", 900)
 def disc_lr():       return get("disc_lr", 1e-4)
 def gen_lr():        return get("gen_lr", 2.5e-4)
 def gen_lr_range():  return (get("gen_lr_range_min", 1e-5), get("gen_lr_range_max", 1e-3))
@@ -105,23 +108,26 @@ def log_metrics(metrics: dict, step: int = None):
 # ---------------------------------------------------------------------------
 # Intent encoding
 # ---------------------------------------------------------------------------
-def encode_human_intent(intent, player):
+def encode_human_intent(intent, px, py):
+    """Encode a PlayerIntent as an action vector.
+
+    px/py must be the player's position at the moment the paired observation
+    was taken (before the engine stepped), or the aim bin drifts.
+    """
     mx = intent.mx + 1
     my = intent.my + 1
     fire = 1 if intent.fire else 0
     dash = 1 if intent.dash else 0
-    spell = 1 if intent.selected_spell else 0
+    spell = int(intent.selected_spell)
 
-    dx = intent.aim_x - player.px
-    dy = intent.aim_y - player.py
+    dx = intent.aim_x - px
+    dy = intent.aim_y - py
     angle = np.arctan2(dy, dx)
     if angle < 0:
         angle += 2 * np.pi
 
     _dirs = aim_directions()
-    aim_bin = int(round(angle / (2 * np.pi / _dirs)))
-    if aim_bin >= _dirs:
-        aim_bin = _dirs - 1
+    aim_bin = int(round(angle / (2 * np.pi / _dirs))) % _dirs
 
     attack = 1 if intent.attack else 0
     return np.array([mx, my, fire, dash, spell, aim_bin, attack], dtype=np.float32)

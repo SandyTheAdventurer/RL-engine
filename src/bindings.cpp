@@ -68,6 +68,9 @@ py::tuple step_interactive_frameskip(Engine& engine, const PlayerIntent& p2_inte
 }
 
 PYBIND11_MODULE(Game, m) {
+    m.attr("obs_dim") = obs_dim;
+    m.attr("qm_obs_dim") = qm_obs_dim;
+
     py::class_<FrameInput>(m, "FrameInput")
         .def_readonly("quit", &FrameInput::quit)
         .def_readonly("mouse_left_clicked", &FrameInput::mouse_left_clicked)

@@ -134,7 +134,64 @@ class GAIL:
     def load_normalizer(self, d):
         self.obs_normalizer.load_state_dict(d)
 
-    def train(self, expert_actions, expert_obs, total_timesteps, persistent_state, num_steps=None):
+    @torch.no_grad()
+    def evaluate_generator(self, reference_discriminator, eval_steps=256):
+        """Score this generator under a shared reference discriminator.
+
+        PB2 selection needs scores comparable across agents; each agent's own
+        discriminator is not (a weak discriminator inflates its agent's
+        score), so the league evaluates everyone with one reference.
+        Rolls self.env forward — callers should reset the env afterwards.
+        """
+        num_envs = getattr(self.env, "num_envs", 1)
+        single_env = num_envs == 1
+        device = self.device
+
+        obs, _ = self.env.reset()
+        done = torch.zeros(num_envs, dtype=torch.float32, device=device)
+        gen_state = (
+            torch.zeros(self.generator.lstm.num_layers, num_envs, self.generator.lstm.hidden_size, device=device),
+            torch.zeros(self.generator.lstm.num_layers, num_envs, self.generator.lstm.hidden_size, device=device),
+        )
+        boss_state = (
+            torch.zeros(self.boss.lstm.num_layers, num_envs, self.boss.lstm.hidden_size, device=device),
+            torch.zeros(self.boss.lstm.num_layers, num_envs, self.boss.lstm.hidden_size, device=device),
+        )
+        disc_hx = torch.zeros(reference_discriminator.lstm.num_layers, num_envs,
+                              reference_discriminator.lstm.hidden_size, device=device)
+        disc_cx = torch.zeros_like(disc_hx)
+
+        scores = []
+        for _ in range(eval_steps):
+            p1 = torch.as_tensor(obs["player"], dtype=torch.float32, device=device)
+            p2 = torch.as_tensor(obs["boss"], dtype=torch.float32, device=device)
+            if p1.dim() == 1:
+                p1 = p1.unsqueeze(0)
+                p2 = p2.unsqueeze(0)
+            p1 = self.obs_normalizer.normalize(p1)
+            p2 = self.obs_normalizer.normalize(p2)
+
+            action1, gen_state = self.generator.act(p1, gen_state, done, inference=True)
+            action2, boss_state = self.boss.act(p2, boss_state, done, inference=True)
+
+            encoded = self._one_hot_encode(action1.unsqueeze(0))
+            pred, disc_hx, disc_cx = reference_discriminator(p1.unsqueeze(0), encoded, disc_hx, disc_cx, done=done)
+            scores.append(pred.mean().item())
+
+            a1 = action1.cpu().numpy()
+            a2 = action2.cpu().numpy()
+            if single_env:
+                a1 = a1[0]
+                a2 = a2[0]
+            obs, _, dones, _, _ = self.env.step({"player": a1, "boss": a2})
+            d = dones["__all__"] if isinstance(dones, dict) else dones
+            if single_env and d:
+                obs, _ = self.env.reset()
+            done = torch.as_tensor(np.asarray(d, dtype=np.float32).reshape(-1), device=device)
+
+        return float(np.mean(scores))
+
+    def train(self, expert_actions, expert_obs, total_timesteps, persistent_state, num_steps=None, expert_dones=None):
         if num_steps is None:
             num_steps = cfg_num_steps()
 
@@ -143,7 +200,7 @@ class GAIL:
         # Adapt num_steps to available expert data (prevents silent 0-score returns)
         if len(expert_obs) == 0:
             logger.warning("No expert data collected — skipping training")
-            return 0.0, persistent_state
+            return 0.0, 0.0, persistent_state
         if len(expert_obs) < num_steps:
             logger.warning("Expert data shorter than num_steps (%d < %d), adapting", len(expert_obs), num_steps)
             num_steps = max(32, len(expert_obs))
@@ -153,10 +210,12 @@ class GAIL:
         self.generator.init_buffers(num_steps, num_envs=num_envs, device=self.device)
         
         if total_timesteps < num_steps:
-            return 0.0, persistent_state
+            return 0.0, 0.0, persistent_state
             
         expert_obs = torch.as_tensor(expert_obs, dtype=torch.float32, device=self.device)
         expert_actions = torch.as_tensor(expert_actions, dtype=torch.float32, device=self.device)
+        if expert_dones is not None:
+            expert_dones = torch.as_tensor(expert_dones, dtype=torch.float32, device=self.device)
             
         loss_fn = nn.BCELoss()
         _label_smooth = label_smoothing()
@@ -259,7 +318,10 @@ class GAIL:
                 batch_gen_labels = torch.full((num_steps, num_envs, 1), _label_smooth, device=self.device)
                 
                 batch_gen_dones = self.generator.dones_buf
-                batch_expert_dones = torch.zeros_like(batch_gen_dones)
+                if expert_dones is not None:
+                    batch_expert_dones = torch.stack([expert_dones[i : i + num_steps] for i in start_indices], dim=1)
+                else:
+                    batch_expert_dones = torch.zeros_like(batch_gen_dones)
                 
                 encoded_expert_actions = self._one_hot_encode(batch_expert_actions, out_buffer=encoded_expert_buf)
                 encoded_gen_actions = self._one_hot_encode(batch_gen_actions, out_buffer=encoded_gen_buf)
