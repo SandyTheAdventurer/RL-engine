@@ -6,23 +6,26 @@ import torch
 from rl.env import EngineEnv, sys_config
 from rl.config import setup_logging, init_mlflow, end_mlflow, log_metrics, encode_human_intent
 from rl.gail import GAILArgs
-from rl.config import num_envs as cfg_num_envs, pop_size as cfg_pop_size, steps_per_gen as cfg_steps_per_gen, min_expert_frames, max_expert_frames
-from Game import poll_events, MenuResult, Visuals, step_interactive_frameskip
+from rl.bots import BOTS
+from rl.config import num_envs as cfg_num_envs, pop_size as cfg_pop_size, steps_per_gen as cfg_steps_per_gen, num_steps as cfg_num_steps, min_expert_frames, max_expert_frames, test_bot
+from Game import PlayerIntent
 
 torch.set_num_threads(1)
 
-logger = logging.getLogger("rl.test_gail")
+logger = logging.getLogger("rl.autotest")
+
+BOT = BOTS[test_bot()]
 
 
 def main():
     setup_logging()
-    init_mlflow(project="rl-engine", run_name="pb2_gail_interactive")
+    init_mlflow(project="rl-engine", run_name="pb2_gail_run")
 
-    render_env = EngineEnv(render=True, sys_config=sys_config)
-    Visuals.init(render_env.engine, render_env.p1, render_env.p2)
+    render_env = EngineEnv(render=False, sys_config=sys_config)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     from rl.pb2_league import PB2League
+
     league = PB2League(pop_size=cfg_pop_size(), num_envs=cfg_num_envs(), device=device)
 
     global_expert_obs = []
@@ -43,26 +46,11 @@ def main():
             champion.disc_lr,
         )
 
-        start_play = False
-        while True:
-            frame = poll_events()
-            if frame.quit:
-                return
-            result = Visuals.start_menu(render_env.engine, frame)
-            if result == MenuResult.PLAY:
-                start_play = True
-                break
-            elif result == MenuResult.QUIT:
-                return
-
-        if not start_play:
-            break
-
-        # --- PHASE 1: Human vs PPO (Collecting Data) ---
-        logger.info("PHASE 1: Human vs PPO (Collecting Data)")
+        # --- PHASE 1: Collect expert data ---
+        logger.info("PHASE 1: BOT vs PPO (Collecting Data)")
         render_env.reset()
-        expert_obs = []
-        expert_actions = []
+        cycle_expert_obs = []
+        cycle_expert_actions = []
 
         boss_lstm_state = (
             torch.zeros(champion.gail.boss.lstm.num_layers, 1, champion.gail.boss.lstm.hidden_size).to(device),
@@ -70,7 +58,8 @@ def main():
         )
 
         frame_skip = render_env.frame_skip
-        quit_early = False
+        total_frames = 0
+        bot = BOT()
 
         render_env.p1.damage_dealt_step = 0.0
         render_env.p1.damage_taken_step = 0.0
@@ -82,22 +71,38 @@ def main():
 
             current_boss_intent, boss_lstm_state = champion.gail.get_boss_intent(current_obs["boss"], boss_lstm_state, render_env.p2)
 
-            fake_intent, quit_early = step_interactive_frameskip(render_env.engine, current_boss_intent, frame_skip, 1.0 / 60.0)
+            bot_mx, bot_my, bot_fire, bot_dash, bot_spell, bot_aim_x, bot_aim_y, bot_attack = bot.act(current_obs["player"], 1.0 / 60.0 * frame_skip)
+            current_bot_intent = PlayerIntent(int(bot_mx), int(bot_my), bool(bot_fire), bool(bot_dash), int(bot_spell), float(bot_aim_x), float(bot_aim_y), bool(bot_attack))
+            bot_action_enc = encode_human_intent(current_bot_intent, render_env.p1)
 
-            expert_obs.append(current_obs["player"])
-            expert_actions.append(encode_human_intent(fake_intent, render_env.p1))
+            cycle_expert_obs.append(current_obs["player"])
+            cycle_expert_actions.append(bot_action_enc)
 
-            if quit_early:
-                break
+            for _ in range(frame_skip):
+                if render_env.engine.is_done(): break
+                render_env.engine.step(current_bot_intent, current_boss_intent, 1.0 / 60.0)
+                total_frames += 1
 
-        assert len(expert_obs) > 0
-        global_expert_obs.extend(expert_obs)
-        global_expert_actions.extend(expert_actions)
+        dx = render_env.p1.px - render_env.p2.px
+        dy = render_env.p1.py - render_env.p2.py
+        log_metrics({
+            "eval/match_duration_s": total_frames / 60.0,
+            "eval/bot_health": render_env.p1.health,
+            "eval/boss_health": render_env.p2.health,
+            "eval/bot_damage_dealt": render_env.p1.damage_dealt_step,
+            "eval/bot_damage_taken": render_env.p1.damage_taken_step,
+            "eval/boss_damage_dealt": render_env.p2.damage_dealt_step,
+            "eval/boss_damage_taken": render_env.p2.damage_taken_step,
+            "eval/distance_to_opponent": math.sqrt(dx * dx + dy * dy),
+        }, step=cycle_num)
+
+        global_expert_obs.extend(cycle_expert_obs)
+        global_expert_actions.extend(cycle_expert_actions)
         if len(global_expert_obs) > max_expert_frames():
             global_expert_obs = global_expert_obs[-max_expert_frames():]
             global_expert_actions = global_expert_actions[-max_expert_frames():]
 
-        logger.info("Collected %d frames of expert data (total: %d)", len(expert_obs), len(global_expert_obs))
+        logger.info("Collected %d frames of expert data (total: %d)", len(cycle_expert_obs), len(global_expert_obs))
 
         if len(global_expert_obs) < min_expert_frames():
             logger.warning(
@@ -106,20 +111,7 @@ def main():
             )
             cycle_num += 1
             continue
-        dy = render_env.p1.py - render_env.p2.py
-        log_metrics({
-            "eval/match_duration_s": len(expert_obs) * frame_skip / 60.0,
-            "eval/human_health": render_env.p1.health,
-            "eval/boss_health": render_env.p2.health,
-            "eval/human_damage_dealt": render_env.p1.damage_dealt_step,
-            "eval/human_damage_taken": render_env.p1.damage_taken_step,
-            "eval/boss_damage_dealt": render_env.p2.damage_dealt_step,
-            "eval/boss_damage_taken": render_env.p2.damage_taken_step,
-            "eval/distance_to_opponent": math.sqrt(dx * dx + dy * dy),
-        }, step=cycle_num)
 
-        # --- PHASE 2: Train all generators (GAIL) ---
-        logger.info("PHASE 2: Training generators")
 
         obs_np = np.array(global_expert_obs)
         act_np = np.array(global_expert_actions)
@@ -131,11 +123,9 @@ def main():
             "train/disc_lr": champion.disc_lr,
         }, step=cycle_num)
 
+        # --- PHASE 2: Train all generators (GAIL) ---
+        logger.info("PHASE 2: Training generators")
         for agent in league.population:
-            logger.info(
-                "Agent %d (GenLR: %.2e, DiscLR: %.2e) started training",
-                agent.id, agent.gen_lr, agent.disc_lr,
-            )
             agent.gail.env = agent.env
             num_envs = agent.env.num_envs
             persistent_state = agent.get_states(device, num_envs)
@@ -213,7 +203,6 @@ def main():
 
         # --- EVOLVE ---
         league.evolve(cycle_num)
-        logger.info("PB2 Evolution Complete! Click CONTINUE on the Level Up screen")
 
         scores = [a.score for a in league.population]
         log_metrics({
@@ -226,23 +215,10 @@ def main():
         log_metrics({"cycle/wall_clock_s": time.time() - cycle_start}, step=cycle_num)
         logger.info("Cycle %d complete in %.1fs", cycle_num, time.time() - cycle_start)
 
-        while True:
-            frame = poll_events()
-            if frame.quit:
-                return
-
-            result = Visuals.end_menu(render_env.engine, frame)
-
-            if result == MenuResult.RESTART:
-                break
-            elif result == MenuResult.QUIT:
-                return
-
-            time.sleep(1.0 / 60.0)
-
         cycle_num += 1
 
     end_mlflow()
+
 
 if __name__ == "__main__":
     main()

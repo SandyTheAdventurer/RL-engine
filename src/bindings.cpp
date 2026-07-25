@@ -19,6 +19,54 @@ py::array_t<float> obs_to_numpy(const std::array<float, N>& obs) {
     return arr;
 }
 
+py::tuple step_interactive_frameskip(Engine& engine, const PlayerIntent& p2_intent, int frame_skip, float dt) {
+    int agg_mx = 0, agg_my = 0;
+    bool agg_fire = false, agg_dash = false, agg_attack = false;
+    int agg_spell = 0;
+    float agg_aim_x = 0.0f, agg_aim_y = 0.0f;
+    bool quit = false;
+
+    Uint64 freq = SDL_GetPerformanceFrequency();
+    Uint64 target_count = SDL_GetPerformanceCounter() + static_cast<Uint64>(dt * freq);
+
+    for (int i = 0; i < frame_skip; i++) {
+        if (engine.is_done()) break;
+
+        FrameInput frame_input = pollEvents();
+        if (frame_input.quit) {
+            quit = true;
+            break;
+        }
+
+        PlayerIntent human = getHumanIntent(frame_input);
+
+        if (human.mx != 0) agg_mx = human.mx;
+        if (human.my != 0) agg_my = human.my;
+        agg_fire = agg_fire || human.fire;
+        agg_dash = agg_dash || human.dash;
+        if (human.selected_spell > 0) agg_spell = human.selected_spell;
+        agg_attack = agg_attack || human.attack;
+        agg_aim_x = human.aim_x;
+        agg_aim_y = human.aim_y;
+
+        PlayerIntent p2_copy = p2_intent;
+        engine.step(human, p2_copy, dt);
+        engine.render();
+        Visuals::hud(engine);
+        engine.present();
+
+        Uint64 now = SDL_GetPerformanceCounter();
+        if (now < target_count) {
+            Uint64 delay_ns = ((target_count - now) * 1000000000ULL) / freq;
+            SDL_DelayNS(delay_ns);
+        }
+        target_count = SDL_GetPerformanceCounter() + static_cast<Uint64>(dt * freq);
+    }
+
+    PlayerIntent fake_intent{agg_mx, agg_my, agg_fire, agg_dash, agg_spell, agg_aim_x, agg_aim_y, agg_attack};
+    return py::make_tuple(fake_intent, quit);
+}
+
 PYBIND11_MODULE(Game, m) {
     py::class_<FrameInput>(m, "FrameInput")
         .def_readonly("quit", &FrameInput::quit)
@@ -144,6 +192,8 @@ PYBIND11_MODULE(Game, m) {
         .def_readonly("vy", &Player::vy)
         .def_readonly("stats", &Player::stats)
         .def_readonly("max_hp", &Player::max_hp)
+        .def_readwrite("damage_dealt_step", &Player::damage_dealt_step)
+        .def_readwrite("damage_taken_step", &Player::damage_taken_step)
         .def_property_readonly("weapon", [](Player& p) { return p.equipment.weapon; })
         .def_readonly("equip_load_ratio", &Player::equip_load_ratio)
         .def_readwrite("dimes", &Player::dimes)
@@ -216,13 +266,15 @@ PYBIND11_MODULE(Game, m) {
 
     m.def("poll_events", &pollEvents);
     m.def("get_human_intent", &getHumanIntent);
+    m.def("step_interactive_frameskip", &step_interactive_frameskip);
     
     py::class_<MultiEngine>(m, "MultiEngine")
-        .def(py::init<int, int, float, float, float, float, float, float, int, int>(),
-             py::arg("num_envs"), py::arg("frame_skip"),
-             py::arg("p1_x"), py::arg("p1_y"), py::arg("p1_speed"),
-             py::arg("p2_x"), py::arg("p2_y"), py::arg("p2_speed"),
-             py::arg("screenw"), py::arg("screenh"))
+        .def(py::init<const std::string&>(),
+             py::arg("config_path"))
+        .def("init_engines", [](MultiEngine& self, int num_envs) {
+            init_engines(self, num_envs);
+        }, py::arg("num_envs"))
+        .def_readonly("frame_skip", &MultiEngine::frame_skip)
         .def("reset", &MultiEngine::reset)
         .def("step", &MultiEngine::step, py::arg("p1_actions"), py::arg("p2_actions"), py::arg("dt"));
 }

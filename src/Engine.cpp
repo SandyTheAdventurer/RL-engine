@@ -263,7 +263,7 @@ std::array<float, obs_dim> Engine::observe(const Player& self, const Player& ene
     obs[i++] = enemy.vx / playerspeed;
     obs[i++] = enemy.vy / playerspeed;
 
-    constexpr float sentinel = -2.0f;
+    constexpr float sentinel = 0.0f;
 
     for (int j = 0; j < max_proj_obs; j++) {
         const SpellProjectile& p = self.projectiles[j];

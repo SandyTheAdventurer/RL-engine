@@ -1,8 +1,10 @@
-import sys, os, time
+import sys
+import os
+import time
 sys.path.append(os.path.abspath("build"))
 
 import Game
-from rl.bots import ExpertBot
+from rl.bots import HardBot
 
 SCREENW, SCREENH = 1280, 720
 ENGINE_DT = 1.0 / 60.0
@@ -14,7 +16,7 @@ engine.reset()
 
 Game.Visuals.init(engine, p1, p2)
 
-bot = ExpertBot(SCREENW, SCREENH)
+bot = HardBot(SCREENW, SCREENH)
 
 def run_game():
     engine.reset()
@@ -53,7 +55,6 @@ def run_game():
         if engine.is_done():
             Game.Visuals.stop_fight_music()
             teff = engine.get_teff()
-            p1_health_before = p1.max_hp
             p2_health_before = p2.max_hp
 
             if p2.health <= 0:
