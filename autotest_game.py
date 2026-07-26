@@ -3,6 +3,7 @@ import math
 import time
 import numpy as np
 import torch
+from line_profiler import profile
 from rl.env import EngineEnv, sys_config
 from rl.config import setup_logging, init_mlflow, end_mlflow, log_metrics, encode_human_intent
 from rl.gail import GAILArgs
@@ -21,6 +22,7 @@ logger = logging.getLogger("rl.autotest")
 BOT = BOTS[test_bot()]
 
 
+@profile
 def main():
     setup_logging()
     init_mlflow(project="rl-engine", run_name="pb2_gail_run")

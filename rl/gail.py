@@ -4,6 +4,8 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 
+from line_profiler import profile
+
 from rl.ppo import PPO, layer_init
 from rl.env import EngineEnv
 from rl.config import disc_lr, gen_lr, num_steps as cfg_num_steps, num_minibatches, update_epochs, gamma, gae_lambda, clip_coef, ent_coef, vf_coef, max_grad_norm, reward_alpha, label_smoothing, disc_grad_norm, RunningMeanStd
@@ -28,6 +30,7 @@ class Discriminator(nn.Module):
         )
         self.optim = optim.Adam(self.parameters(), lr=disc_lr())
     
+    @profile
     def forward(self, obs, action, hx=None, cx=None, done=None):
         x = torch.cat([obs, action], dim=-1)
         x = self.pre_lstm(x)
@@ -109,6 +112,7 @@ class GAIL:
 
         self.obs_normalizer = RunningMeanStd(shape=(obs_dim,), device=device)
 
+    @profile
     def _one_hot_encode(self, actions, out_buffer=None):
         if out_buffer is None:
             out_buffer = torch.zeros(actions.shape[:-1] + (self.action_dim,), dtype=torch.float32, device=actions.device)
@@ -134,6 +138,7 @@ class GAIL:
     def load_normalizer(self, d):
         self.obs_normalizer.load_state_dict(d)
 
+    @profile
     def train(self, expert_actions, expert_obs, total_timesteps, persistent_state, num_steps=None, expert_dones=None):
         if num_steps is None:
             num_steps = cfg_num_steps()

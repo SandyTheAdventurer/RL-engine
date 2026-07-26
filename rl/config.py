@@ -4,6 +4,8 @@ import sys
 import logging
 import numpy as np
 
+from line_profiler import profile
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -171,6 +173,7 @@ class RunningMeanStd:
         import torch
         return torch.clamp((x - self.mean) * self.inv_std, -clip, clip)
 
+    @profile
     def update_and_normalize(self, x, clip=5.0):
         """Update running stats from x, then return normalized x."""
         import torch

@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 
+from line_profiler import profile
+
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
     torch.nn.init.constant_(layer.bias, bias_const)
@@ -53,6 +55,7 @@ class PPO(nn.Module):
         
         self.initial_lstm_state = None
 
+    @profile
     def get_states(self, x, lstm_state, done):
         hidden = self.network(x)
         
@@ -72,10 +75,12 @@ class PPO(nn.Module):
         new_hidden = torch.flatten(torch.cat(new_hidden), 0, 1)
         return new_hidden, lstm_state
 
+    @profile
     def get_value(self, x, lstm_state, done):
         hidden, _ = self.get_states(x, lstm_state, done)
         return self.critic(hidden)
 
+    @profile
     def get_action_and_value(self, x, lstm_state, done, action=None):
         hidden, lstm_state = self.get_states(x, lstm_state, done)
         logits = self.actor(hidden)
@@ -91,6 +96,7 @@ class PPO(nn.Module):
             
         return action, log_prob, entropy, self.critic(hidden), lstm_state
 
+    @profile
     def act(self, obs, lstm_state, done, inference=False):
         obs = torch.as_tensor(obs, dtype=torch.float32, device=self.device)
         done = torch.as_tensor(done, dtype=torch.float32, device=self.device)
@@ -123,6 +129,7 @@ class PPO(nn.Module):
     def is_buffer_full(self):
         return self.step_idx >= self.num_steps
         
+    @profile
     def update(self, optimizer, args, next_obs, next_done, next_lstm_state):
         assert self.is_buffer_full(), "Buffer is not full yet! Cannot update."
         

@@ -1,6 +1,8 @@
 import numpy as np
 import sys
 import os
+
+from line_profiler import profile
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'build')))
 import Game
 from Game import MultiEngine
@@ -32,6 +34,7 @@ class MultiEngineEnv:
         obs_dict, _ = self.engine.reset()
         return obs_dict, None
 
+    @profile
     def step(self, actions):
         p1_actions = actions["player"]
         p2_actions = actions["boss"]

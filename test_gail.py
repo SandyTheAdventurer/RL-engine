@@ -3,6 +3,7 @@ import math
 import time
 import numpy as np
 import torch
+from line_profiler import profile
 from rl.env import EngineEnv, sys_config
 from rl.config import setup_logging, init_mlflow, end_mlflow, log_metrics, encode_human_intent
 from rl.gail import GAILArgs
@@ -18,6 +19,7 @@ torch.set_num_threads(max(1, (os.cpu_count() or 2) // 2))
 logger = logging.getLogger("rl.test_gail")
 
 
+@profile
 def main():
     setup_logging()
     init_mlflow(project="rl-engine", run_name="pb2_gail_interactive")

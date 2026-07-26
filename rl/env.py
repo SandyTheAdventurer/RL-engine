@@ -1,6 +1,8 @@
 import functools
 import sys
 import os
+
+from line_profiler import profile
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'build')))
 import Game
 from Game import Engine, Player, PlayerIntent
@@ -50,10 +52,12 @@ class EngineEnv(ParallelEnv):
     def action_space(self, agent):
         return spaces.MultiDiscrete([3, 3, 2, 2, 4, aim_directions(), 2])
 
+    @profile
     def _get_obs(self):
         return {"player": self.engine.observe(self.p1, self.p2),
                 "boss": self.engine.observe(self.p2, self.p1)}
 
+    @profile
     def _decode_action(self, action, player: Player):
         mx = int(action[0]) - 1
         my = int(action[1]) - 1
@@ -83,6 +87,7 @@ class EngineEnv(ParallelEnv):
         base_reward = self.players[me].damage_dealt_step - self.players[me].damage_taken_step
         return base_reward + TIME_PENALTY
     
+    @profile
     def step(self, actions):
         p1_action = self._decode_action(actions["player"], self.p1)
         p2_action = self._decode_action(actions["boss"], self.p2)

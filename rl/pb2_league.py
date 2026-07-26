@@ -4,6 +4,8 @@ import numpy as np
 import copy
 import random
 import torch
+
+from line_profiler import profile
 from rl.gail import GAIL
 from rl.vec_env import MultiEngineEnv
 from rl.config import gen_lr_range, disc_lr_range
@@ -76,6 +78,7 @@ class PB2League:
             for param_group in agent.gail.boss_optimizer.param_groups:
                 param_group['lr'] = agent.gen_lr
 
+    @profile
     def evolve(self, cycle_num=None):
 
         for agent in self.population:
