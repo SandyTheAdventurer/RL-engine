@@ -137,7 +137,9 @@ def main():
             persistent_state = agent.get_states(device, num_envs)
             gen_score, gen_damage_ratio, gen_damage, persistent_state = agent.gail.train(act_np, obs_np, total_timesteps=cfg_steps_per_gen(), persistent_state=persistent_state, expert_dones=dones_np)
 
-            agent.score = 1.0 - abs(gen_damage_ratio - bot_damage_ratio)
+            style_score = min(1.0, gen_score * 2.0)  # Reward fooling discriminator toward >= 0.50
+            outcome_score = 1.0 - abs(gen_damage_ratio - bot_damage_ratio)
+            agent.score = 0.5 * style_score + 0.5 * outcome_score
 
             # Re-reset env — train() left it in an arbitrary state
             obs, _ = agent.env.reset()
@@ -145,8 +147,14 @@ def main():
             persistent_state = (obs, done, persistent_state[2], persistent_state[3], persistent_state[4])
             agent.save_states(*persistent_state)
 
-            logger.info("Agent %d score: %.4f (disc: %.4f, dmg_ratio: %.4f vs bot: %.4f) | damage: %.2f", agent.id, agent.score, gen_score, gen_damage_ratio, bot_damage_ratio, gen_damage)
-            log_metrics({f"train/agent_{agent.id}_gen_damage": gen_damage, f"train/agent_{agent.id}_damage_ratio": gen_damage_ratio}, step=cycle_num)
+            logger.info("Agent %d hybrid score: %.4f (style: %.4f [disc: %.4f], outcome: %.4f [dmg_ratio: %.4f vs bot: %.4f]) | damage: %.2f", agent.id, agent.score, style_score, gen_score, outcome_score, gen_damage_ratio, bot_damage_ratio, gen_damage)
+            log_metrics({
+                f"train/agent_{agent.id}_gen_damage": gen_damage,
+                f"train/agent_{agent.id}_damage_ratio": gen_damage_ratio,
+                f"train/agent_{agent.id}_style_score": style_score,
+                f"train/agent_{agent.id}_outcome_score": outcome_score,
+                f"train/agent_{agent.id}_hybrid_score": agent.score,
+            }, step=cycle_num)
 
         # --- PHASE 3: Train champion's boss PPO ---
         champion = league.get_champion()

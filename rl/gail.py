@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 
-from rl.ppo import PPO, layer_init
+from rl.ppo import PPO, layer_init, evaluate_rnn_sequence
 from rl.env import EngineEnv
 from rl.config import disc_lr, gen_lr, num_steps as cfg_num_steps, num_minibatches, update_epochs, gamma, gae_lambda, clip_coef, ent_coef, vf_coef, max_grad_norm, reward_alpha, label_smoothing, disc_grad_norm, RunningMeanStd
 
@@ -47,15 +47,7 @@ class Discriminator(nn.Module):
         if done is not None:
             if done.dim() == 1:
                 done = done.view(1, -1)
-            
-            new_hidden = []
-            for h, d in zip(x, done):
-                d_mask = (1.0 - d.float()).view(1, -1, 1)
-                hx = hx * d_mask
-                cx = cx * d_mask
-                out, (hx, cx) = self.lstm(h.unsqueeze(0), (hx, cx))
-                new_hidden.append(out)
-            out = torch.cat(new_hidden, dim=0)
+            out, (hx, cx) = evaluate_rnn_sequence(self.lstm, x, (hx, cx), done)
         else:
             out, (hx, cx) = self.lstm(x, (hx, cx))
 
