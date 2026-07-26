@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.distributions.categorical import Categorical
+import torch.nn.functional as F
 
 from line_profiler import profile
 
@@ -9,6 +9,41 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
     torch.nn.init.constant_(layer.bias, bias_const)
     return layer
+
+def evaluate_rnn_sequence(lstm, x_seq, lstm_state, done_seq):
+    """Evaluates an RNN over a trajectory sequence without step-by-step Python looping,
+    slicing cleanly at exact reset boundaries to preserve cuDNN fused sequence speed.
+    """
+    hx, cx = lstm_state
+
+    if x_seq.shape[0] == 1:
+        d_mask = (1.0 - done_seq[0].float()).view(1, -1, 1)
+        return lstm(x_seq, (hx * d_mask, cx * d_mask))
+
+    d_mask0 = (1.0 - done_seq[0].float()).view(1, -1, 1)
+    hx = hx * d_mask0
+    cx = cx * d_mask0
+
+    if not torch.any(done_seq[1:]):
+        return lstm(x_seq, (hx, cx))
+
+    reset_steps = torch.where(torch.any(done_seq[1:].bool(), dim=1))[0] + 1
+    split_indices = [0] + reset_steps.tolist() + [x_seq.shape[0]]
+
+    outputs = []
+    for i in range(len(split_indices) - 1):
+        t_start = split_indices[i]
+        t_end = split_indices[i + 1]
+        if t_start > 0:
+            d_mask = (1.0 - done_seq[t_start].float()).view(1, -1, 1)
+            hx = hx * d_mask
+            cx = cx * d_mask
+
+        chunk_out, (hx, cx) = lstm(x_seq[t_start:t_end], (hx, cx))
+        outputs.append(chunk_out)
+
+    return torch.cat(outputs, dim=0), (hx, cx)
+
 
 class PPO(nn.Module):
     def __init__(self, obs_dim, action_nvec):
@@ -62,17 +97,8 @@ class PPO(nn.Module):
         batch_size = lstm_state[0].shape[1]
         hidden = hidden.reshape((-1, batch_size, self.lstm.input_size))
         done = done.reshape((-1, batch_size))
-        new_hidden = []
-        for h, d in zip(hidden, done):
-            h, lstm_state = self.lstm(
-                h.unsqueeze(0),
-                (
-                    (1.0 - d).view(1, -1, 1) * lstm_state[0],
-                    (1.0 - d).view(1, -1, 1) * lstm_state[1],
-                ),
-            )
-            new_hidden += [h]
-        new_hidden = torch.flatten(torch.cat(new_hidden), 0, 1)
+        new_hidden, lstm_state = evaluate_rnn_sequence(self.lstm, hidden, lstm_state, done)
+        new_hidden = torch.flatten(new_hidden, 0, 1)
         return new_hidden, lstm_state
 
     @profile
@@ -80,21 +106,47 @@ class PPO(nn.Module):
         hidden, _ = self.get_states(x, lstm_state, done)
         return self.critic(hidden)
 
+    def get_action_only(self, x, lstm_state, done):
+        """Fast inference path that avoids evaluating critic, log_prob, and entropy."""
+        hidden, lstm_state = self.get_states(x, lstm_state, done)
+        logits = self.actor(hidden)
+        split_logits = torch.split(logits, self.action_nvec, dim=-1)
+        action = torch.stack([torch.multinomial(F.softmax(logits_i, dim=-1), 1).squeeze(-1) for logits_i in split_logits], dim=-1)
+        return action, lstm_state
+
     @profile
-    def get_action_and_value(self, x, lstm_state, done, action=None):
+    def get_action_and_value(self, x, lstm_state, done, action=None, compute_entropy=True):
         hidden, lstm_state = self.get_states(x, lstm_state, done)
         logits = self.actor(hidden)
         
         split_logits = torch.split(logits, self.action_nvec, dim=-1)
-        multi_categoricals = [Categorical(logits=logits_i) for logits_i in split_logits]
         
+        actions = [] if action is None else None
+        total_log_prob = None
+        total_entropy = None
+        
+        for i, l in enumerate(split_logits):
+            log_p = F.log_softmax(l, dim=-1)
+            
+            if action is None:
+                probs = log_p.exp()
+                act_i = torch.multinomial(probs, 1).squeeze(-1)
+                actions.append(act_i)
+            else:
+                act_i = action[..., i].long()
+                
+            lp_i = log_p.gather(dim=-1, index=act_i.unsqueeze(-1)).squeeze(-1)
+            total_log_prob = lp_i if total_log_prob is None else (total_log_prob + lp_i)
+            
+            if compute_entropy:
+                probs = log_p.exp()
+                ent_i = -(probs * log_p).sum(dim=-1)
+                total_entropy = ent_i if total_entropy is None else (total_entropy + ent_i)
+                
         if action is None:
-            action = torch.stack([categorical.sample() for categorical in multi_categoricals], dim=-1)
+            action = torch.stack(actions, dim=-1)
             
-        log_prob = torch.stack([categorical.log_prob(action[..., i]) for i, categorical in enumerate(multi_categoricals)], dim=-1).sum(dim=-1)
-        entropy = torch.stack([categorical.entropy() for categorical in multi_categoricals], dim=-1).sum(dim=-1)
-            
-        return action, log_prob, entropy, self.critic(hidden), lstm_state
+        return action, total_log_prob, total_entropy, self.critic(hidden), lstm_state
 
     @profile
     def act(self, obs, lstm_state, done, inference=False):
@@ -103,14 +155,14 @@ class PPO(nn.Module):
         
         if inference:
             with torch.no_grad():
-                action, log_prob, entropy, value, next_lstm_state = self.get_action_and_value(obs, lstm_state, done)
+                action, next_lstm_state = self.get_action_only(obs, lstm_state, done)
             return action, next_lstm_state
             
         if self.step_idx == 0:
             self.initial_lstm_state = (lstm_state[0].clone(), lstm_state[1].clone())
             
         with torch.no_grad():
-            action, log_prob, entropy, value, next_lstm_state = self.get_action_and_value(obs, lstm_state, done)
+            action, log_prob, _, value, next_lstm_state = self.get_action_and_value(obs, lstm_state, done, compute_entropy=False)
             
         self.obs_buf[self.step_idx] = obs
         self.actions_buf[self.step_idx] = action
