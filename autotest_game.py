@@ -68,6 +68,8 @@ def main():
         render_env.p1.damage_taken_step = 0.0
         render_env.p2.damage_dealt_step = 0.0
         render_env.p2.damage_taken_step = 0.0
+        bot_total_damage_dealt = 0.0
+        bot_total_damage_taken = 0.0
 
         while not render_env.engine.is_done():
             current_obs = render_env._get_obs()
@@ -81,10 +83,16 @@ def main():
             cycle_expert_obs.append(current_obs["player"])
             cycle_expert_actions.append(bot_action_enc)
 
+            render_env.p1.damage_dealt_step = 0.0
+            render_env.p1.damage_taken_step = 0.0
             for _ in range(frame_skip):
                 if render_env.engine.is_done(): break
                 render_env.engine.step(current_bot_intent, current_boss_intent, 1.0 / 60.0)
                 total_frames += 1
+            bot_total_damage_dealt += render_env.p1.damage_dealt_step
+            bot_total_damage_taken += render_env.p1.damage_taken_step
+
+        bot_damage_ratio = bot_total_damage_dealt / (bot_total_damage_dealt + bot_total_damage_taken + 1e-8)
 
         dx = render_env.p1.px - render_env.p2.px
         dy = render_env.p1.py - render_env.p2.py
@@ -92,10 +100,9 @@ def main():
             "eval/match_duration_s": total_frames / 60.0,
             "eval/bot_health": render_env.p1.health,
             "eval/boss_health": render_env.p2.health,
-            "eval/bot_damage_dealt": render_env.p1.damage_dealt_step,
-            "eval/bot_damage_taken": render_env.p1.damage_taken_step,
-            "eval/boss_damage_dealt": render_env.p2.damage_dealt_step,
-            "eval/boss_damage_taken": render_env.p2.damage_taken_step,
+            "eval/bot_damage_dealt": bot_total_damage_dealt,
+            "eval/bot_damage_taken": bot_total_damage_taken,
+            "eval/bot_damage_ratio": bot_damage_ratio,
             "eval/distance_to_opponent": math.sqrt(dx * dx + dy * dy),
         }, step=cycle_num)
 
@@ -124,27 +131,22 @@ def main():
         # --- PHASE 2: Train all generators (GAIL) ---
         logger.info("PHASE 2: Training generators")
 
-        # One shared judge for the whole population: per-agent discriminator
-        # scores are not comparable (a weak discriminator inflates its own
-        # agent's score, so evolution would select for bad discriminators).
-        ref_disc = champion.gail.discriminator
-
         for agent in league.population:
             agent.gail.env = agent.env
             num_envs = agent.env.num_envs
             persistent_state = agent.get_states(device, num_envs)
-            gen_score, gen_damage, persistent_state = agent.gail.train(act_np, obs_np, total_timesteps=cfg_steps_per_gen(), persistent_state=persistent_state, expert_dones=dones_np)
+            gen_score, gen_damage_ratio, gen_damage, persistent_state = agent.gail.train(act_np, obs_np, total_timesteps=cfg_steps_per_gen(), persistent_state=persistent_state, expert_dones=dones_np)
 
-            agent.score = agent.gail.evaluate_generator(ref_disc)
+            agent.score = 1.0 - abs(gen_damage_ratio - bot_damage_ratio)
 
-            # Re-reset env — train()/evaluate_generator() left it in an arbitrary state
+            # Re-reset env — train() left it in an arbitrary state
             obs, _ = agent.env.reset()
             done = np.zeros(num_envs, dtype=bool)
             persistent_state = (obs, done, persistent_state[2], persistent_state[3], persistent_state[4])
             agent.save_states(*persistent_state)
 
-            logger.info("Agent %d score: %.4f (own-disc: %.4f) | damage: %.2f", agent.id, agent.score, gen_score, gen_damage)
-            log_metrics({f"train/agent_{agent.id}_gen_damage": gen_damage}, step=cycle_num)
+            logger.info("Agent %d score: %.4f (disc: %.4f, dmg_ratio: %.4f vs bot: %.4f) | damage: %.2f", agent.id, agent.score, gen_score, gen_damage_ratio, bot_damage_ratio, gen_damage)
+            log_metrics({f"train/agent_{agent.id}_gen_damage": gen_damage, f"train/agent_{agent.id}_damage_ratio": gen_damage_ratio}, step=cycle_num)
 
         # --- PHASE 3: Train champion's boss PPO ---
         champion = league.get_champion()

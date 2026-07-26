@@ -134,63 +134,6 @@ class GAIL:
     def load_normalizer(self, d):
         self.obs_normalizer.load_state_dict(d)
 
-    @torch.no_grad()
-    def evaluate_generator(self, reference_discriminator, eval_steps=256):
-        """Score this generator under a shared reference discriminator.
-
-        PB2 selection needs scores comparable across agents; each agent's own
-        discriminator is not (a weak discriminator inflates its agent's
-        score), so the league evaluates everyone with one reference.
-        Rolls self.env forward — callers should reset the env afterwards.
-        """
-        num_envs = getattr(self.env, "num_envs", 1)
-        single_env = num_envs == 1
-        device = self.device
-
-        obs, _ = self.env.reset()
-        done = torch.zeros(num_envs, dtype=torch.float32, device=device)
-        gen_state = (
-            torch.zeros(self.generator.lstm.num_layers, num_envs, self.generator.lstm.hidden_size, device=device),
-            torch.zeros(self.generator.lstm.num_layers, num_envs, self.generator.lstm.hidden_size, device=device),
-        )
-        boss_state = (
-            torch.zeros(self.boss.lstm.num_layers, num_envs, self.boss.lstm.hidden_size, device=device),
-            torch.zeros(self.boss.lstm.num_layers, num_envs, self.boss.lstm.hidden_size, device=device),
-        )
-        disc_hx = torch.zeros(reference_discriminator.lstm.num_layers, num_envs,
-                              reference_discriminator.lstm.hidden_size, device=device)
-        disc_cx = torch.zeros_like(disc_hx)
-
-        scores = []
-        for _ in range(eval_steps):
-            p1 = torch.as_tensor(obs["player"], dtype=torch.float32, device=device)
-            p2 = torch.as_tensor(obs["boss"], dtype=torch.float32, device=device)
-            if p1.dim() == 1:
-                p1 = p1.unsqueeze(0)
-                p2 = p2.unsqueeze(0)
-            p1 = self.obs_normalizer.normalize(p1)
-            p2 = self.obs_normalizer.normalize(p2)
-
-            action1, gen_state = self.generator.act(p1, gen_state, done, inference=True)
-            action2, boss_state = self.boss.act(p2, boss_state, done, inference=True)
-
-            encoded = self._one_hot_encode(action1.unsqueeze(0))
-            pred, disc_hx, disc_cx = reference_discriminator(p1.unsqueeze(0), encoded, disc_hx, disc_cx, done=done)
-            scores.append(pred.mean().item())
-
-            a1 = action1.cpu().numpy()
-            a2 = action2.cpu().numpy()
-            if single_env:
-                a1 = a1[0]
-                a2 = a2[0]
-            obs, _, dones, _, _ = self.env.step({"player": a1, "boss": a2})
-            d = dones["__all__"] if isinstance(dones, dict) else dones
-            if single_env and d:
-                obs, _ = self.env.reset()
-            done = torch.as_tensor(np.asarray(d, dtype=np.float32).reshape(-1), device=device)
-
-        return float(np.mean(scores))
-
     def train(self, expert_actions, expert_obs, total_timesteps, persistent_state, num_steps=None, expert_dones=None):
         if num_steps is None:
             num_steps = cfg_num_steps()
@@ -240,6 +183,7 @@ class GAIL:
         gen_score = 0.0
         gen_score_history = []
         total_gen_damage_dealt = 0.0
+        total_gen_damage_taken = 0.0
         total_episodes = 0.0
         disc_initial_lstm_state = None
         
@@ -276,6 +220,12 @@ class GAIL:
                     total_gen_damage_dealt += float(np.sum(p_dmg))
                 else:
                     total_gen_damage_dealt += float(p_dmg)
+            if "player" in infos and "damage_taken" in infos["player"]:
+                p_dmg_taken = infos["player"]["damage_taken"]
+                if isinstance(p_dmg_taken, np.ndarray) or isinstance(p_dmg_taken, torch.Tensor):
+                    total_gen_damage_taken += float(np.sum(p_dmg_taken))
+                else:
+                    total_gen_damage_taken += float(p_dmg_taken)
             
             with torch.no_grad():
                 encoded_action = self._one_hot_encode(action1.unsqueeze(0), out_buffer=encoded_action_buf)
@@ -361,4 +311,5 @@ class GAIL:
         gen_score = np.mean(gen_score_history) if len(gen_score_history) > 0 else 0.0
         episodes_completed = max(total_episodes, 1.0)
         avg_gen_damage = total_gen_damage_dealt / episodes_completed
-        return gen_score, avg_gen_damage, (obs, done, gen_lstm_state, boss_lstm_state, disc_lstm_state)
+        gen_damage_ratio = total_gen_damage_dealt / (total_gen_damage_dealt + total_gen_damage_taken + 1e-8)
+        return gen_score, gen_damage_ratio, avg_gen_damage, (obs, done, gen_lstm_state, boss_lstm_state, disc_lstm_state)
