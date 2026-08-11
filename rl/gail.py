@@ -59,7 +59,7 @@ class Discriminator(nn.Module):
         return out, hx, cx
 
 class GAILArgs:
-    def __init__(self, num_steps, num_envs):
+    def __init__(self, num_steps, num_envs, ent_coef_val=None):
         self.num_steps = num_steps
         self.num_envs = num_envs
         self.batch_size = num_steps * num_envs
@@ -68,7 +68,7 @@ class GAILArgs:
         self.gamma = gamma()
         self.gae_lambda = gae_lambda()
         self.clip_coef = clip_coef()
-        self.ent_coef = ent_coef()
+        self.ent_coef = ent_coef_val if ent_coef_val is not None else ent_coef()
         self.vf_coef = vf_coef()
         self.max_grad_norm = max_grad_norm()
         self.clip_vloss = True
@@ -85,7 +85,8 @@ class GAIL:
         self.action_offsets = torch.tensor(np.cumsum([0] + list(self.action_nvec[:-1])), device=device)
         
         self.generator = PPO(obs_dim, self.action_nvec).to(device)
-        self.boss = PPO(obs_dim, self.action_nvec).to(device)
+        # Increase BOSS PPO neural network power (deeper MLP, wider layers, and stacked LSTMs)
+        self.boss = PPO(obs_dim, self.action_nvec, hidden_dim=1024, lstm_hidden=512, num_mlp_layers=4, lstm_layers=2).to(device)
         
         if boss_dir:
             self.boss.load(boss_dir, device=device)
@@ -100,6 +101,8 @@ class GAIL:
         self.discriminator = Discriminator(disc_input_dim, 512).to(device)
 
         self.obs_normalizer = RunningMeanStd(shape=(obs_dim,), device=device)
+        self.reward_alpha = reward_alpha()
+        self.ent_coef = ent_coef()
 
     def _one_hot_encode(self, actions, out_buffer=None):
         if out_buffer is None:
@@ -140,7 +143,7 @@ class GAIL:
             logger.warning("Expert data shorter than num_steps (%d < %d), adapting", len(expert_obs), num_steps)
             num_steps = max(32, len(expert_obs))
 
-        args = GAILArgs(num_steps=num_steps, num_envs=num_envs)
+        args = GAILArgs(num_steps=num_steps, num_envs=num_envs, ent_coef_val=getattr(self, "ent_coef", None))
         
         self.generator.init_buffers(num_steps, num_envs=num_envs, device=self.device)
         
@@ -154,7 +157,7 @@ class GAIL:
             
         loss_fn = nn.BCELoss()
         _label_smooth = label_smoothing()
-        _reward_alpha = reward_alpha()
+        _reward_alpha = getattr(self, "reward_alpha", reward_alpha())
 
         obs, done, gen_lstm_state, boss_lstm_state, disc_lstm_state = persistent_state
 
@@ -229,7 +232,9 @@ class GAIL:
                 )
                 disc_lstm_state = (disc_hx, disc_cx)
                 
-                gail_reward = -torch.log(1.0 - gen_pred.squeeze() + 1e-8)
+                d_prob = gen_pred.squeeze()
+                # Symmetrical logit reward formulation (log(D) - log(1 - D)) avoids gradient saturation
+                gail_reward = torch.log(d_prob + 1e-8) - torch.log(1.0 - d_prob + 1e-8)
                 player_reward = rewards["player"] if isinstance(rewards, dict) else rewards
                 game_reward_buf.copy_(torch.as_tensor(player_reward))
                 gail_reward = _reward_alpha * gail_reward + (1.0 - _reward_alpha) * game_reward_buf

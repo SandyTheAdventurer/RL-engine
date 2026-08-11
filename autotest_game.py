@@ -3,6 +3,7 @@ import math
 import time
 import numpy as np
 import torch
+from concurrent.futures import ThreadPoolExecutor
 from rl.env import EngineEnv, sys_config
 from rl.config import setup_logging, init_mlflow, end_mlflow, log_metrics, encode_human_intent
 from rl.gail import GAILArgs
@@ -42,9 +43,11 @@ def main():
 
         logger.info("CYCLE %d", cycle_num)
         logger.info(
-            "Challenging Champion %d (Score: %.2f, GenLR: %.2e, DiscLR: %.2e)",
+            "Challenging Champion %d (Score: %.2f, Alpha: %.2f, Ent: %.3f, GenLR: %.2e, DiscLR: %.2e)",
             champion.id,
             champion.score,
+            getattr(champion, "reward_alpha", 0.5),
+            getattr(champion, "ent_coef", 0.03),
             champion.gen_lr,
             champion.disc_lr,
         )
@@ -128,10 +131,11 @@ def main():
             "train/disc_lr": champion.disc_lr,
         }, step=cycle_num)
 
-        # --- PHASE 2: Train all generators (GAIL) ---
-        logger.info("PHASE 2: Training generators")
+        # --- PHASE 2: Train all generators (GAIL) concurrently ---
+        logger.info("PHASE 2: Training generators concurrently via ThreadPoolExecutor")
 
-        for agent in league.population:
+        def _train_agent(agent):
+            logger.info("Training Generator for Agent %d [Alpha: %.2f, Ent: %.3f, GenLR: %.2e, DiscLR: %.2e]...", agent.id, getattr(agent, "reward_alpha", 0.5), getattr(agent, "ent_coef", 0.03), agent.gen_lr, agent.disc_lr)
             agent.gail.env = agent.env
             num_envs = agent.env.num_envs
             persistent_state = agent.get_states(device, num_envs)
@@ -146,14 +150,21 @@ def main():
             done = np.zeros(num_envs, dtype=bool)
             persistent_state = (obs, done, persistent_state[2], persistent_state[3], persistent_state[4])
             agent.save_states(*persistent_state)
+            return agent, style_score, gen_score, outcome_score, gen_damage_ratio, bot_damage_ratio, gen_damage
 
-            logger.info("Agent %d hybrid score: %.4f (style: %.4f [disc: %.4f], outcome: %.4f [dmg_ratio: %.4f vs bot: %.4f]) | damage: %.2f", agent.id, agent.score, style_score, gen_score, outcome_score, gen_damage_ratio, bot_damage_ratio, gen_damage)
+        with ThreadPoolExecutor(max_workers=len(league.population)) as executor:
+            train_results = list(executor.map(_train_agent, league.population))
+
+        for agent, style_score, gen_score, outcome_score, gen_damage_ratio, bot_damage_ratio, gen_damage in train_results:
+            logger.info("Agent %d [a=%.2f, ent=%.3f] hybrid score: %.4f (style: %.4f [disc: %.4f], outcome: %.4f [dmg_ratio: %.4f vs bot: %.4f]) | damage: %.2f", agent.id, getattr(agent, "reward_alpha", 0.5), getattr(agent, "ent_coef", 0.03), agent.score, style_score, gen_score, outcome_score, gen_damage_ratio, bot_damage_ratio, gen_damage)
             log_metrics({
                 f"train/agent_{agent.id}_gen_damage": gen_damage,
                 f"train/agent_{agent.id}_damage_ratio": gen_damage_ratio,
                 f"train/agent_{agent.id}_style_score": style_score,
                 f"train/agent_{agent.id}_outcome_score": outcome_score,
                 f"train/agent_{agent.id}_hybrid_score": agent.score,
+                f"train/agent_{agent.id}_reward_alpha": getattr(agent, "reward_alpha", 0.5),
+                f"train/agent_{agent.id}_ent_coef": getattr(agent, "ent_coef", 0.03),
             }, step=cycle_num)
 
         # --- PHASE 3: Train champion's boss PPO ---

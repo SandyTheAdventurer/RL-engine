@@ -111,22 +111,23 @@ def test_gail_cartpole():
     gen_params_before = {n: p.clone() for n, p in gail.generator.named_parameters()}
     disc_params_before = {n: p.clone() for n, p in gail.discriminator.named_parameters()}
 
-    # Train — gail.train returns (gen_score, avg_gen_damage, state)
+    # Train — gail.train returns (gen_score, gen_damage_ratio, avg_gen_damage, state)
     result = gail.train(
         expert_actions, expert_obs, total_timesteps=300,
         persistent_state=persistent_state, num_steps=128,
     )
 
     assert isinstance(result, tuple), f"Expected tuple return, got {type(result)}"
-    assert len(result) == 3, f"Expected 3-tuple (gen_score, avg_gen_damage, state), got {len(result)}"
+    assert len(result) == 4, f"Expected 4-tuple (gen_score, gen_damage_ratio, avg_gen_damage, state), got {len(result)}"
 
-    gen_score, avg_gen_damage, new_state = result
+    gen_score, gen_damage_ratio, avg_gen_damage, new_state = result
 
     # Validate gen_score
     assert isinstance(gen_score, float), f"gen_score should be float, got {type(gen_score)}"
     assert 0.0 <= gen_score <= 1.0, f"gen_score out of [0,1] range: {gen_score}"
 
-    # Validate avg_gen_damage
+    # Validate gen_damage_ratio and avg_gen_damage
+    assert isinstance(gen_damage_ratio, float), f"gen_damage_ratio should be float, got {type(gen_damage_ratio)}"
     assert isinstance(avg_gen_damage, float), f"avg_gen_damage should be float, got {type(avg_gen_damage)}"
     assert avg_gen_damage >= 0.0, f"avg_gen_damage is negative: {avg_gen_damage}"
 

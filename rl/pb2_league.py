@@ -20,6 +20,10 @@ class PB2Agent:
         dlr_min, dlr_max = disc_lr_range()
         self.gen_lr = self.trial.suggest_float("gen_lr", glr_min, glr_max, log=True)
         self.disc_lr = self.trial.suggest_float("disc_lr", dlr_min, dlr_max, log=True)
+        self.reward_alpha = self.trial.suggest_float("reward_alpha", 0.2, 0.9)
+        self.ent_coef = self.trial.suggest_float("ent_coef", 0.005, 0.1, log=True)
+        self.gail.reward_alpha = self.reward_alpha
+        self.gail.ent_coef = self.ent_coef
         self.score = 0.0
         self.persistent_state = None
 
@@ -69,6 +73,8 @@ class PB2League:
 
     def apply_learning_rates(self):
         for agent in self.population:
+            agent.gail.reward_alpha = agent.reward_alpha
+            agent.gail.ent_coef = agent.ent_coef
             for param_group in agent.gail.gen_optimizer.param_groups: 
                 param_group['lr'] = agent.gen_lr
             for param_group in agent.gail.discriminator.optim.param_groups: 
@@ -77,10 +83,12 @@ class PB2League:
                 param_group['lr'] = agent.gen_lr
 
     def evolve(self, cycle_num=None):
-
         for agent in self.population:
             self.study.tell(agent.trial, agent.score)
             
+        if self.pop_size <= 1:
+            logger.info("--- EVOLUTION RESULTS (Cycle %s) --- Population size <= 1, skipping evolutionary culling and crossover.", cycle_num)
+            return
 
         self.population.sort(key=lambda x: x.score, reverse=True)
         cutoff = self.pop_size // 2
@@ -92,8 +100,12 @@ class PB2League:
 
         for agent in top_agents:
             agent.trial = self.study.ask()
-            agent.gen_lr = np.clip(agent.gen_lr * agent.trial.suggest_float("gen_lr_mult", 0.8, 1.2), 1e-6, 1e-2)
-            agent.disc_lr = np.clip(agent.disc_lr * agent.trial.suggest_float("disc_lr_mult", 0.8, 1.2), 1e-6, 1e-2)
+            agent.gen_lr = float(np.clip(agent.gen_lr * agent.trial.suggest_float("gen_lr_mult", 0.8, 1.2), 1e-6, 1e-2))
+            agent.disc_lr = float(np.clip(agent.disc_lr * agent.trial.suggest_float("disc_lr_mult", 0.8, 1.2), 1e-6, 1e-2))
+            agent.reward_alpha = float(np.clip(agent.reward_alpha * agent.trial.suggest_float("alpha_mult", 0.8, 1.2), 0.1, 0.95))
+            agent.ent_coef = float(np.clip(agent.ent_coef * agent.trial.suggest_float("ent_mult", 0.8, 1.2), 0.005, 0.1))
+            agent.gail.reward_alpha = agent.reward_alpha
+            agent.gail.ent_coef = agent.ent_coef
 
 
         for bottom in bottom_agents:
@@ -113,5 +125,9 @@ class PB2League:
             
 
             bottom.trial = self.study.ask()
-            bottom.gen_lr = np.clip(top.gen_lr * bottom.trial.suggest_float("gen_lr_mult", 0.5, 2.0), 1e-6, 1e-2)
-            bottom.disc_lr = np.clip(top.disc_lr * bottom.trial.suggest_float("disc_lr_mult", 0.5, 2.0), 1e-6, 1e-2)
+            bottom.gen_lr = float(np.clip(top.gen_lr * bottom.trial.suggest_float("gen_lr_mult", 0.5, 2.0), 1e-6, 1e-2))
+            bottom.disc_lr = float(np.clip(top.disc_lr * bottom.trial.suggest_float("disc_lr_mult", 0.5, 2.0), 1e-6, 1e-2))
+            bottom.reward_alpha = float(np.clip(top.reward_alpha * bottom.trial.suggest_float("alpha_mult", 0.5, 2.0), 0.1, 0.95))
+            bottom.ent_coef = float(np.clip(top.ent_coef * bottom.trial.suggest_float("ent_mult", 0.5, 2.0), 0.005, 0.1))
+            bottom.gail.reward_alpha = bottom.reward_alpha
+            bottom.gail.ent_coef = bottom.ent_coef

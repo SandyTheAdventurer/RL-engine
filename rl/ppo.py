@@ -44,19 +44,16 @@ def evaluate_rnn_sequence(lstm, x_seq, lstm_state, done_seq):
 
 
 class PPO(nn.Module):
-    def __init__(self, obs_dim, action_nvec):
+    def __init__(self, obs_dim, action_nvec, hidden_dim=512, lstm_hidden=256, num_mlp_layers=3, lstm_layers=1):
         super().__init__()
         
-        self.network = nn.Sequential(
-            layer_init(nn.Linear(obs_dim, 512)),
-            nn.ReLU(),
-            layer_init(nn.Linear(512, 512)),
-            nn.ReLU(),
-            layer_init(nn.Linear(512, 512)),
-            nn.ReLU(),
-        )
+        layers = [layer_init(nn.Linear(obs_dim, hidden_dim)), nn.ReLU()]
+        for _ in range(max(1, num_mlp_layers - 1)):
+            layers.append(layer_init(nn.Linear(hidden_dim, hidden_dim)))
+            layers.append(nn.ReLU())
+        self.network = nn.Sequential(*layers)
         
-        self.lstm = nn.LSTM(512, 256)
+        self.lstm = nn.LSTM(hidden_dim, lstm_hidden, num_layers=lstm_layers)
         for name, param in self.lstm.named_parameters():
             if "bias" in name:
                 nn.init.constant_(param, 0)
@@ -64,8 +61,8 @@ class PPO(nn.Module):
                 nn.init.orthogonal_(param, 1.0)
                 
         self.action_nvec = tuple(action_nvec)
-        self.actor = layer_init(nn.Linear(256, sum(action_nvec)), std=0.01)
-        self.critic = layer_init(nn.Linear(256, 1), std=1)
+        self.actor = layer_init(nn.Linear(lstm_hidden, sum(action_nvec)), std=0.01)
+        self.critic = layer_init(nn.Linear(lstm_hidden, 1), std=1)
         
         self.step_idx = 0
         self.num_steps = 0

@@ -12,7 +12,7 @@
 
     "num_envs": 32,
     "pop_size": 4,
-    "steps_per_gen": 4096,
+    "steps_per_gen": 16384,
     "num_steps": 128,
     "min_expert_frames": 128,
     "expert_max_matches": 8,
